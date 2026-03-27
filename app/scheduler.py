@@ -15,11 +15,15 @@ class Scheduler:
         store: RequestStore,
         engine: FakeModelEngine,
         max_active_requests: int = 4,
+        max_prefill_per_tick: int = 4,
         tick_interval_s: float = 0.1,
     ) -> None:
+        if max_prefill_per_tick < 0:
+            raise ValueError("max_prefill_per_tick must be >= 0")
         self.store = store
         self.engine = engine
         self.max_active_requests = max_active_requests
+        self.max_prefill_per_tick = max_prefill_per_tick
         self.tick_interval_s = tick_interval_s
         self.tick = 0
         self.logger = setup_logger()
@@ -52,39 +56,70 @@ class Scheduler:
 
             active_snapshot = list(self.store.active_requests.values())
 
-        # Step 2: prefill all requests not prefetched yet
+        # Step 2: snapshot decode-phase requests (before prefill moves PREFILL -> DECODE)
+        decode_targets: List[GenerationRequest] = [
+            req for req in active_snapshot
+            if req.state == RequestState.DECODE
+        ]
+
+        # Step 3: prefill active requests still in PREFILL (at most max_prefill_per_tick per tick)
         prefill_targets: List[GenerationRequest] = [
             req for req in active_snapshot
             if req.state == RequestState.PREFILL and not req.prefill_done
-        ]
+        ][: self.max_prefill_per_tick]
 
         for req in prefill_targets:
+            req.prefill_start_time = time.time()
+            if req.admitted_time is not None:
+                req.prefill_wait_ms = (req.prefill_start_time - req.admitted_time) * 1000
             await self.engine.prefill(req)
+            req.prefill_end_time = time.time()
+            req.prefill_duration_ms = (req.prefill_end_time - req.prefill_start_time) * 1000
+            req.prefill_done = True
             req.state = RequestState.DECODE
             prefill_ids.append(req.request_id)
 
-        # Step 3: one shared decode step for all decode-ready requests
-        async with self.store.lock:
-            decode_targets = [
-                req for req in self.store.active_requests.values()
-                if req.state == RequestState.DECODE
-            ]
-            active_before_finish = [req.request_id for req in decode_targets]
+        # Step 4: one shared decode step only for the decode snapshot (not this tick's new DECODE)
+        active_before_finish = [req.request_id for req in decode_targets]
 
         if decode_targets:
             decode_results = await self.engine.decode_step(decode_targets)
+            decode_done_time = time.time()
+            decoded_request_ids = {request_id for request_id, _token in decode_results}
+            for req in decode_targets:
+                if req.request_id in decoded_request_ids and req.first_decode_time is None:
+                    req.first_decode_time = decode_done_time
+                    req.time_to_first_token_ms = (req.first_decode_time - req.arrival_time) * 1000
 
-        # Step 4: finish requests that hit max_new_tokens
+        # Step 5: finish requests that hit max_new_tokens
         async with self.store.lock:
             to_finish = []
             for req in self.store.active_requests.values():
                 if len(req.generated_tokens) >= req.max_new_tokens:
                     req.state = RequestState.FINISHED
-                    # Mark finished time and calculate latencies
                     req.finished_time = time.time()
                     req.total_latency_ms = (req.finished_time - req.arrival_time) * 1000
+
+                    if req.admitted_time is not None:
+                        req.queue_wait_ms = (req.admitted_time - req.arrival_time) * 1000
+
+                    if req.prefill_start_time is not None and req.admitted_time is not None:
+                        req.prefill_wait_ms = (req.prefill_start_time - req.admitted_time) * 1000
+
+                    if req.prefill_end_time is not None and req.prefill_start_time is not None:
+                        req.prefill_duration_ms = (
+                            req.prefill_end_time - req.prefill_start_time
+                        ) * 1000
+
+                    if req.first_decode_time is not None:
+                        req.time_to_first_token_ms = (req.first_decode_time - req.arrival_time) * 1000
+                        req.decode_tail_ms = (
+                            req.finished_time - req.first_decode_time
+                        ) * 1000
+
                     if req.queue_wait_ms is not None:
                         req.service_time_ms = req.total_latency_ms - req.queue_wait_ms
+
                     to_finish.append(req.request_id)
 
             # for logging after releasing the lock
@@ -109,16 +144,25 @@ class Scheduler:
             active_after_finish=active_after_finish,
         )
 
+
         for req in completed_requests:
             self.logger.info(
                 f"[complete] request_id={req.request_id} "
                 f"prompt={req.prompt!r} "
                 f"max_new_tokens={req.max_new_tokens} "
                 f"generated_tokens={len(req.generated_tokens)} "
-                f"queue_wait_ms={req.queue_wait_ms:.1f} "
-                f"service_time_ms={req.service_time_ms:.1f} "
-                f"total_latency_ms={req.total_latency_ms:.1f}"
+                f"queue_wait_ms={self._fmt_ms(req.queue_wait_ms)} "
+                f"prefill_wait_ms={self._fmt_ms(req.prefill_wait_ms)} "
+                f"prefill_ms={self._fmt_ms(req.prefill_duration_ms)} "
+                f"ttft_ms={self._fmt_ms(req.time_to_first_token_ms)} "
+                f"decode_tail_ms={self._fmt_ms(req.decode_tail_ms)} "
+                f"service_time_ms={self._fmt_ms(req.service_time_ms)} "
+                f"total_latency_ms={self._fmt_ms(req.total_latency_ms)}"
             )
+
+    @staticmethod
+    def _fmt_ms(value: float | None) -> str:
+        return "none" if value is None else f"{value:.1f}"
 
     def _log_tick(
         self,
@@ -141,6 +185,7 @@ class Scheduler:
         finish_str = ",".join(finished_ids) or "none"
         active_before_finish_str = ",".join(active_before_finish) or "none"
         active_after_finish_str = ",".join(active_after_finish) or "none"
+        prefill_batch_size = len(prefill_ids)
         decode_batch_size = len(decode_results)
 
         self.logger.info(
@@ -148,6 +193,7 @@ class Scheduler:
             f"waiting={waiting_size} "
             f"admit={admit_str} "
             f"active_before_finish={active_before_finish_str} "
+            f"prefill_batch_size={prefill_batch_size} "
             f"prefill_done={prefill_str} "
             f"decode_batch_size={decode_batch_size} "
             f"decode={decode_str} "

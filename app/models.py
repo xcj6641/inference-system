@@ -20,8 +20,15 @@ class GenerationRequest:
     state: RequestState = RequestState.WAITING
     arrival_time: float = field(default_factory=time.time)
     admitted_time: Optional[float] = None
+    prefill_start_time: Optional[float] = None
+    prefill_end_time: Optional[float] = None
+    first_decode_time: Optional[float] = None
     finished_time: Optional[float] = None
     prefill_done: bool = False
     queue_wait_ms: float | None = None
+    prefill_wait_ms: float | None = None
+    prefill_duration_ms: float | None = None
+    time_to_first_token_ms: float | None = None
+    decode_tail_ms: float | None = None
     total_latency_ms: float | None = None
     service_time_ms: Optional[float] = None

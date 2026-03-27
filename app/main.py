@@ -19,6 +19,7 @@ scheduler = Scheduler(
     store=store,
     engine=engine,
     max_active_requests=3,
+    max_prefill_per_tick=3,
     tick_interval_s=0.1,
 )
 logger = setup_logger()
@@ -69,8 +70,15 @@ async def get_request_status(request_id: str):
         "max_new_tokens": req.max_new_tokens,
         "arrival_time": req.arrival_time,
         "admitted_time": req.admitted_time,
+        "prefill_start_time": req.prefill_start_time,
+        "prefill_end_time": req.prefill_end_time,
+        "first_decode_time": req.first_decode_time,
         "finished_time": req.finished_time,
         "queue_wait_ms": req.queue_wait_ms,
+        "prefill_wait_ms": req.prefill_wait_ms,
+        "prefill_duration_ms": req.prefill_duration_ms,
+        "time_to_first_token_ms": req.time_to_first_token_ms,
+        "decode_tail_ms": req.decode_tail_ms,
         "total_latency_ms": req.total_latency_ms,
         "service_time_ms": req.service_time_ms,
     }
@@ -81,6 +89,7 @@ async def scheduler_debug():
     async with store.lock:
         return {
             "tick": scheduler.tick,
+            "max_prefill_per_tick": scheduler.max_prefill_per_tick,
             "waiting_queue_size": len(store.waiting_queue),
             "active_request_ids": list(store.active_requests.keys()),
             "finished_request_ids": list(store.finished_requests.keys()),
