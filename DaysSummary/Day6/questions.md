@@ -1,0 +1,2 @@
+why are current_tokens_in_flight and max_tokens_in_flight inside scheduler? What are these two for? Do you mean max_tokens_in_flight are shared by all requests?
+What is reserved_tokens for? And what is max_new_tokens for?

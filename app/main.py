@@ -18,7 +18,7 @@ engine = FakeModelEngine()
 scheduler = Scheduler(
     store=store,
     engine=engine,
-    max_active_requests=3,
+    max_tokens_in_flight=64,
     max_prefill_per_tick=3,
     tick_interval_s=0.1,
 )
@@ -34,6 +34,10 @@ class GenerateRequest(BaseModel):
 async def startup_event() -> None:
     asyncio.create_task(scheduler.run_forever())
 
+def estimate_prompt_tokens(prompt: str) -> int:
+    # 简单 mock：按空格切
+    # 如果你想更稳定一点，也可以 max(1, len(prompt.split()))
+    return max(1, len(prompt.split()))
 
 @app.post("/generate")
 async def generate(req: GenerateRequest):
@@ -43,10 +47,15 @@ async def generate(req: GenerateRequest):
         prompt=req.prompt,
         max_new_tokens=req.max_new_tokens,
     )
+
+    gen_req.prompt_tokens = estimate_prompt_tokens(req.prompt)
+    gen_req.reserved_tokens = gen_req.prompt_tokens + req.max_new_tokens
+
     await store.add_waiting_request(gen_req)
 
     logger.info(
         f"[submit] request_id={request_id} prompt={req.prompt!r} "
+        f"prompt_tokens={gen_req.prompt_tokens} reserved_tokens={gen_req.reserved_tokens} "
         f"max_new_tokens={req.max_new_tokens} state={gen_req.state}"
     )
 
@@ -89,6 +98,8 @@ async def scheduler_debug():
     async with store.lock:
         return {
             "tick": scheduler.tick,
+            "max_tokens_in_flight": scheduler.max_tokens_in_flight,
+            "current_tokens_in_flight": scheduler.current_tokens_in_flight,
             "max_prefill_per_tick": scheduler.max_prefill_per_tick,
             "waiting_queue_size": len(store.waiting_queue),
             "active_request_ids": list(store.active_requests.keys()),

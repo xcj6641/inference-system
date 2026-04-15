@@ -18,6 +18,12 @@ class GenerationRequest:
     max_new_tokens: int
     generated_tokens: list[str] = field(default_factory=list)
     state: RequestState = RequestState.WAITING
+
+    prompt_tokens: int = 0
+
+    # token reservation for admission budget (prompt + max_new_to_generate, estimated)
+    reserved_tokens: int = 0
+
     arrival_time: float = field(default_factory=time.time)
     admitted_time: Optional[float] = None
     prefill_start_time: Optional[float] = None

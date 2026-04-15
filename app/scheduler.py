@@ -14,7 +14,7 @@ class Scheduler:
         self,
         store: RequestStore,
         engine: FakeModelEngine,
-        max_active_requests: int = 4,
+        max_tokens_in_flight: int = 20,
         max_prefill_per_tick: int = 4,
         tick_interval_s: float = 0.1,
     ) -> None:
@@ -22,7 +22,11 @@ class Scheduler:
             raise ValueError("max_prefill_per_tick must be >= 0")
         self.store = store
         self.engine = engine
-        self.max_active_requests = max_active_requests
+        if max_tokens_in_flight < 1:
+            raise ValueError("max_tokens_in_flight must be >= 1")
+        self.max_tokens_in_flight = max_tokens_in_flight
+        self.current_tokens_in_flight = 0
+
         self.max_prefill_per_tick = max_prefill_per_tick
         self.tick_interval_s = tick_interval_s
         self.tick = 0
@@ -35,24 +39,57 @@ class Scheduler:
             await self._run_one_tick()
             await asyncio.sleep(self.tick_interval_s)
 
+    @staticmethod
+    def _estimate_needed_tokens(req: GenerationRequest) -> int:
+        """Estimated total tokens for this request (prefill + decode budget)."""
+        if req.reserved_tokens > 0:
+            return req.reserved_tokens
+        return max(0, req.prompt_tokens) + req.max_new_tokens
+
+    def _fmt_tokens_in_flight(self) -> str:
+        return f"{self.current_tokens_in_flight}/{self.max_tokens_in_flight}"
+
     async def _run_one_tick(self) -> None:
         admitted_ids = []
         prefill_ids = []
         decode_results = []
         finished_ids = []
 
-        # Step 1: admit from waiting queue into active set
+        # Step 1: admit from waiting queue while token budget allows
         async with self.store.lock:
-            while (
-                len(self.store.active_requests) < self.max_active_requests
-                and self.store.waiting_queue
-            ):
+            while self.store.waiting_queue:
+                # fairness issue: head-of-line blocking if the head request is too large to admit, it will block all other requests behind it. In practice, this may not be a big issue since we expect most requests to be small (e.g., < 100 tokens), but it's something to keep in mind. 
+                # Possible solution: look beyond the head of the queue for requests that fit in the token budget, but this adds complexity and may cause starvation of large requests.
+                peek = self.store.waiting_queue[0]
+                needed = self._estimate_needed_tokens(peek)
+                if self.current_tokens_in_flight + needed > self.max_tokens_in_flight:
+                    self.logger.info(
+                        "[admission_blocked] head_request_id=%s prompt_tokens=%d "
+                        "reserved_tokens=%d needed_tokens=%d tokens_in_flight=%s",
+                        peek.request_id,
+                        peek.prompt_tokens,
+                        peek.reserved_tokens,
+                        needed,
+                        self._fmt_tokens_in_flight(),
+                    )
+                    break
                 req = self.store.waiting_queue.popleft()
+                if req.reserved_tokens <= 0:
+                    req.reserved_tokens = needed
+                self.current_tokens_in_flight += needed
                 req.state = RequestState.PREFILL
                 req.admitted_time = time.time()
-                req.queue_wait_ms = (req.admitted_time - req.arrival_time) * 1000
+                # req.queue_wait_ms = (req.admitted_time - req.arrival_time) * 1000
                 self.store.active_requests[req.request_id] = req
                 admitted_ids.append(req.request_id)
+                self.logger.info(
+                    "[admit] request_id=%s prompt_tokens=%d reserved_tokens=%d "
+                    "tokens_in_flight=%s",
+                    req.request_id,
+                    req.prompt_tokens,
+                    req.reserved_tokens,
+                    self._fmt_tokens_in_flight(),
+                )
 
             active_snapshot = list(self.store.active_requests.values())
 
@@ -70,11 +107,8 @@ class Scheduler:
 
         for req in prefill_targets:
             req.prefill_start_time = time.time()
-            if req.admitted_time is not None:
-                req.prefill_wait_ms = (req.prefill_start_time - req.admitted_time) * 1000
             await self.engine.prefill(req)
             req.prefill_end_time = time.time()
-            req.prefill_duration_ms = (req.prefill_end_time - req.prefill_start_time) * 1000
             req.prefill_done = True
             req.state = RequestState.DECODE
             prefill_ids.append(req.request_id)
@@ -84,12 +118,6 @@ class Scheduler:
 
         if decode_targets:
             decode_results = await self.engine.decode_step(decode_targets)
-            decode_done_time = time.time()
-            decoded_request_ids = {request_id for request_id, _token in decode_results}
-            for req in decode_targets:
-                if req.request_id in decoded_request_ids and req.first_decode_time is None:
-                    req.first_decode_time = decode_done_time
-                    req.time_to_first_token_ms = (req.first_decode_time - req.arrival_time) * 1000
 
         # Step 5: finish requests that hit max_new_tokens
         async with self.store.lock:
@@ -98,6 +126,11 @@ class Scheduler:
                 if len(req.generated_tokens) >= req.max_new_tokens:
                     req.state = RequestState.FINISHED
                     req.finished_time = time.time()
+
+                    self.current_tokens_in_flight -= req.reserved_tokens
+                    if self.current_tokens_in_flight < 0:
+                        self.current_tokens_in_flight = 0
+
                     req.total_latency_ms = (req.finished_time - req.arrival_time) * 1000
 
                     if req.admitted_time is not None:
@@ -149,6 +182,7 @@ class Scheduler:
             self.logger.info(
                 f"[complete] request_id={req.request_id} "
                 f"prompt={req.prompt!r} "
+                f"prompt_tokens={req.prompt_tokens} reserved_tokens={req.reserved_tokens} "
                 f"max_new_tokens={req.max_new_tokens} "
                 f"generated_tokens={len(req.generated_tokens)} "
                 f"queue_wait_ms={self._fmt_ms(req.queue_wait_ms)} "
@@ -157,8 +191,12 @@ class Scheduler:
                 f"ttft_ms={self._fmt_ms(req.time_to_first_token_ms)} "
                 f"decode_tail_ms={self._fmt_ms(req.decode_tail_ms)} "
                 f"service_time_ms={self._fmt_ms(req.service_time_ms)} "
-                f"total_latency_ms={self._fmt_ms(req.total_latency_ms)}"
+                f"total_latency_ms={self._fmt_ms(req.total_latency_ms)} "
+                f"tokens_in_flight={self._fmt_tokens_in_flight()}"
             )
+
+
+
 
     @staticmethod
     def _fmt_ms(value: float | None) -> str:
@@ -191,6 +229,7 @@ class Scheduler:
         self.logger.info(
             f"[tick={self.tick}] "
             f"waiting={waiting_size} "
+            f"tokens_in_flight={self._fmt_tokens_in_flight()} "
             f"admit={admit_str} "
             f"active_before_finish={active_before_finish_str} "
             f"prefill_batch_size={prefill_batch_size} "

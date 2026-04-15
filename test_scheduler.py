@@ -1,73 +1,96 @@
 import asyncio
-import time
 import httpx
+import random
+import string
 
-BASE_URL = "http://127.0.0.1:8000"
+URL = "http://localhost:8000/generate"
 
+def short_prompt(case_no: int):
+    return f"hi-{case_no}"
 
-async def submit_request(client: httpx.AsyncClient, prompt: str, max_new_tokens: int):
-    resp = await client.post(
-        f"{BASE_URL}/generate",
-        json={
-            "prompt": prompt,
-            "max_new_tokens": max_new_tokens,
-        },
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    print(f"submitted prompt={prompt}, request_id={data['request_id']}, state={data['state']}")
-    return data["request_id"]
+def long_prompt(case_no: int):
+    return f"hello-{case_no} " * 200  # large prompt_tokens
+
+def random_prompt(case_no: int, length=20):
+    random_suffix = "".join(random.choices(string.ascii_lowercase, k=length))
+    return f"rand-{case_no}-{random_suffix}"
 
 
-async def poll_request_until_done(client: httpx.AsyncClient, request_id: str):
-    while True:
-        resp = await client.get(f"{BASE_URL}/requests/{request_id}")
-        resp.raise_for_status()
-        data = resp.json()
+async def send_request(client, prompt, max_new_tokens):
+    payload = {
+        "prompt": prompt,
+        "max_new_tokens": max_new_tokens,
+    }
+    resp = await client.post(URL, json=payload)
+    return resp.json()
 
-        print(
-            f"request_id={request_id} "
-            f"state={data['state']} "
-            f"tokens={data['generated_tokens']}"
-        )
 
-        if data["state"] == "FINISHED":
-            return data
+# ----------------------------
+# TEST CASES
+# ----------------------------
 
-        await asyncio.sleep(0.2)
+async def test_short_prompts(n=20):
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        tasks = [
+            send_request(client, short_prompt(i + 1), 10)
+            for i in range(n)
+        ]
+        return await asyncio.gather(*tasks)
 
+
+async def test_long_prompts(n=20):
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        tasks = [
+            send_request(client, long_prompt(i + 1), 10)
+            for i in range(n)
+        ]
+        return await asyncio.gather(*tasks)
+
+
+async def test_long_generation(n=20):
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        tasks = [
+            send_request(client, short_prompt(i + 1), 200)
+            for i in range(n)
+        ]
+        return await asyncio.gather(*tasks)
+
+
+async def test_mixed(n=30):
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        tasks = []
+
+        for i in range(n):
+            r = random.random()
+            case_no = i + 1
+
+            if r < 0.33:
+                # short
+                tasks.append(send_request(client, short_prompt(case_no), 10))
+            elif r < 0.66:
+                # long prompt
+                tasks.append(send_request(client, long_prompt(case_no), 10))
+            else:
+                # long generation
+                tasks.append(send_request(client, short_prompt(case_no), 200))
+
+        return await asyncio.gather(*tasks)
+
+
+# ----------------------------
+# MAIN
+# ----------------------------
 
 async def main():
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        # Submit several requests nearly at the same time
-        submit_tasks = [
-            submit_request(client, "req-1", 5),
-            submit_request(client, "req-2", 4),
-            submit_request(client, "req-3", 6),
-            submit_request(client, "req-4", 3),
-            submit_request(client, "req-5", 5),
-        ]
-
-        request_ids = await asyncio.gather(*submit_tasks)
-
-        print("\nall submitted:", request_ids)
-        print("\nstart polling...\n")
-
-        start = time.time()
-
-        results = await asyncio.gather(
-            *[poll_request_until_done(client, rid) for rid in request_ids]
-        )
-
-        elapsed = time.time() - start
-        print(f"\nall finished in {elapsed:.2f}s\n")
-
-        for r in results:
-            print(
-                f"FINAL request_id={r['request_id']} "
-                f"state={r['state']} "
-                f"tokens={r['generated_tokens']}"
-            )
+    # print("Running test_short_prompts test...")
+    # results = await test_short_prompts(30)
+    # print("Running test_long_prompts test...")
+    # results = await test_long_prompts(30)
+    print("Running test_long_generation test...")
+    results = await test_long_generation(30)
+    # print("Running mixed test...")
+    # results = await test_mixed(30)
+    print(f"Submitted {len(results)} requests")
 
 
 if __name__ == "__main__":

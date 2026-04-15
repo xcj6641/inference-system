@@ -9,3 +9,6 @@ pip freeze > requirements.txt
 
 run the server:
 uvicorn app.main:app --reload --no-access-log
+
+run test:
+python test_scheduler.py
