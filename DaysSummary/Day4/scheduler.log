@@ -1,0 +1,20 @@
+2026-03-24 11:42:46 INFO [submit] request_id=b1e361e2 prompt='req-1' max_new_tokens=5 state=RequestState.WAITING
+2026-03-24 11:42:46 INFO [submit] request_id=67fd72fd prompt='req-2' max_new_tokens=4 state=RequestState.WAITING
+2026-03-24 11:42:46 INFO [submit] request_id=b4c36744 prompt='req-3' max_new_tokens=6 state=RequestState.WAITING
+2026-03-24 11:42:46 INFO [submit] request_id=d6825e0e prompt='req-4' max_new_tokens=3 state=RequestState.WAITING
+2026-03-24 11:42:46 INFO [submit] request_id=8bae579b prompt='req-5' max_new_tokens=5 state=RequestState.WAITING
+2026-03-24 11:42:46 INFO [tick=122] waiting=2 admit=b1e361e2,67fd72fd,b4c36744 active_before_finish=b1e361e2,67fd72fd,b4c36744 prefill_done=b1e361e2,67fd72fd,b4c36744 decode_batch_size=3 decode=b1e361e2->tok1 67fd72fd->tok1 b4c36744->tok1 finish=none active_after_finish=b1e361e2,67fd72fd,b4c36744
+2026-03-24 11:42:46 INFO [tick=123] waiting=2 admit=none active_before_finish=b1e361e2,67fd72fd,b4c36744 prefill_done=none decode_batch_size=3 decode=b1e361e2->tok2 67fd72fd->tok2 b4c36744->tok2 finish=none active_after_finish=b1e361e2,67fd72fd,b4c36744
+2026-03-24 11:42:46 INFO [tick=124] waiting=2 admit=none active_before_finish=b1e361e2,67fd72fd,b4c36744 prefill_done=none decode_batch_size=3 decode=b1e361e2->tok3 67fd72fd->tok3 b4c36744->tok3 finish=none active_after_finish=b1e361e2,67fd72fd,b4c36744
+2026-03-24 11:42:47 INFO [tick=125] waiting=2 admit=none active_before_finish=b1e361e2,67fd72fd,b4c36744 prefill_done=none decode_batch_size=3 decode=b1e361e2->tok4 67fd72fd->tok4 b4c36744->tok4 finish=67fd72fd active_after_finish=b1e361e2,b4c36744
+2026-03-24 11:42:47 INFO [complete] request_id=67fd72fd prompt='req-2' max_new_tokens=4 generated_tokens=4 queue_wait_ms=33.6 service_time_ms=663.6 total_latency_ms=697.2
+2026-03-24 11:42:47 INFO [tick=126] waiting=1 admit=d6825e0e active_before_finish=b1e361e2,b4c36744,d6825e0e prefill_done=d6825e0e decode_batch_size=3 decode=b1e361e2->tok5 b4c36744->tok5 d6825e0e->tok1 finish=b1e361e2 active_after_finish=b4c36744,d6825e0e
+2026-03-24 11:42:47 INFO [complete] request_id=b1e361e2 prompt='req-1' max_new_tokens=5 generated_tokens=5 queue_wait_ms=34.4 service_time_ms=866.2 total_latency_ms=900.6
+2026-03-24 11:42:47 INFO [tick=127] waiting=0 admit=8bae579b active_before_finish=b4c36744,d6825e0e,8bae579b prefill_done=8bae579b decode_batch_size=3 decode=b4c36744->tok6 d6825e0e->tok2 8bae579b->tok1 finish=b4c36744 active_after_finish=d6825e0e,8bae579b
+2026-03-24 11:42:47 INFO [complete] request_id=b4c36744 prompt='req-3' max_new_tokens=6 generated_tokens=6 queue_wait_ms=32.4 service_time_ms=1070.4 total_latency_ms=1102.7
+2026-03-24 11:42:47 INFO [tick=128] waiting=0 admit=none active_before_finish=d6825e0e,8bae579b prefill_done=none decode_batch_size=2 decode=d6825e0e->tok3 8bae579b->tok2 finish=d6825e0e active_after_finish=8bae579b
+2026-03-24 11:42:47 INFO [complete] request_id=d6825e0e prompt='req-4' max_new_tokens=3 generated_tokens=3 queue_wait_ms=796.0 service_time_ms=458.4 total_latency_ms=1254.3
+2026-03-24 11:42:47 INFO [tick=129] waiting=0 admit=none active_before_finish=8bae579b prefill_done=none decode_batch_size=1 decode=8bae579b->tok3 finish=none active_after_finish=8bae579b
+2026-03-24 11:42:47 INFO [tick=130] waiting=0 admit=none active_before_finish=8bae579b prefill_done=none decode_batch_size=1 decode=8bae579b->tok4 finish=none active_after_finish=8bae579b
+2026-03-24 11:42:48 INFO [tick=131] waiting=0 admit=none active_before_finish=8bae579b prefill_done=none decode_batch_size=1 decode=8bae579b->tok5 finish=8bae579b active_after_finish=none
+2026-03-24 11:42:48 INFO [complete] request_id=8bae579b prompt='req-5' max_new_tokens=5 generated_tokens=5 queue_wait_ms=999.4 service_time_ms=712.1 total_latency_ms=1711.6
