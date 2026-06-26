@@ -1,0 +1,1 @@
+please also write a BQ story for me. Initially max_tokens_in_flight = 64, and when testing the long request, the service are blocked and don't have any reaction. 

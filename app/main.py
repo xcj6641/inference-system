@@ -19,7 +19,7 @@ scheduler = Scheduler(
     store=store,
     engine=engine,
     max_tokens_in_flight=64,
-    max_prefill_per_tick=3,
+    max_prefill_per_tick=16,
     tick_interval_s=0.1,
 )
 logger = setup_logger()
@@ -27,7 +27,11 @@ logger = setup_logger()
 
 class GenerateRequest(BaseModel):
     prompt: str
-    max_new_tokens: int = Field(default=5, ge=1, le=50)
+    # Default value: 5
+    # Minimum allowed: 1 (ge = greater than or equal)
+    # Maximum allowed: 300 (le = less than or equal) # type: ignore
+    # FastAPI uses this to validate incoming requests and document the constraint in OpenAPI/Swagger. Invalid values automatically receive a 422 response.
+    max_new_tokens: int = Field(default=5, ge=1, le=300) # type: ignore
 
 
 @app.on_event("startup")
@@ -50,6 +54,23 @@ async def generate(req: GenerateRequest):
 
     gen_req.prompt_tokens = estimate_prompt_tokens(req.prompt)
     gen_req.reserved_tokens = gen_req.prompt_tokens + req.max_new_tokens
+
+    if gen_req.reserved_tokens > scheduler.max_tokens_in_flight:
+        logger.warning(
+            f"[reject] request_id={request_id} prompt={req.prompt!r} "
+            f"reserved_tokens={gen_req.reserved_tokens} "
+            f"max_tokens_in_flight={scheduler.max_tokens_in_flight} reason=request_too_large"
+        )
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "error": "request_too_large",
+                "message": (
+                    f"request requires {gen_req.reserved_tokens} reserved tokens, "
+                    f"but scheduler capacity is {scheduler.max_tokens_in_flight}"
+                ),
+            },
+        )
 
     await store.add_waiting_request(gen_req)
 

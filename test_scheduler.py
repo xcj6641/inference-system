@@ -84,10 +84,13 @@ async def test_mixed(n=30):
 async def main():
     # print("Running test_short_prompts test...")
     # results = await test_short_prompts(30)
-    # print("Running test_long_prompts test...")
-    # results = await test_long_prompts(30)
-    print("Running test_long_generation test...")
-    results = await test_long_generation(30)
+
+    print("Running test_long_prompts test...")
+    results = await test_long_prompts(30)
+    
+    # print("Running test_long_generation test...")
+    # results = await test_long_generation(30)
+    
     # print("Running mixed test...")
     # results = await test_mixed(30)
     print(f"Submitted {len(results)} requests")
