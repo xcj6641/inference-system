@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+import os
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from app.models import GenerationRequest
 from app.store import RequestStore
 from app.engine import FakeModelEngine
-from app.scheduler import Scheduler
+from app.scheduler import Scheduler, SchedulerConfig, SchedulerStats
 from app.logger_config import setup_logger
 
 
@@ -18,9 +19,16 @@ engine = FakeModelEngine()
 scheduler = Scheduler(
     store=store,
     engine=engine,
-    max_tokens_in_flight=64,
-    max_prefill_per_tick=16,
-    tick_interval_s=0.1,
+    config=SchedulerConfig(
+        max_active_sequences=16,
+        max_batch_tokens=64,
+        # max_kv_capacity=128,
+        max_kv_capacity=int(os.getenv("MAX_KV_CAPACITY", 128)),
+
+        max_tokens_in_flight=512,
+        max_prefill_per_tick=16,
+        tick_interval_s=0.1,
+    ),
 )
 logger = setup_logger()
 
@@ -55,11 +63,12 @@ async def generate(req: GenerateRequest):
     gen_req.prompt_tokens = estimate_prompt_tokens(req.prompt)
     gen_req.reserved_tokens = gen_req.prompt_tokens + req.max_new_tokens
 
-    if gen_req.reserved_tokens > scheduler.max_tokens_in_flight:
+    if gen_req.reserved_tokens > scheduler.config.max_tokens_in_flight:
         logger.warning(
             f"[reject] request_id={request_id} prompt={req.prompt!r} "
             f"reserved_tokens={gen_req.reserved_tokens} "
-            f"max_tokens_in_flight={scheduler.max_tokens_in_flight} reason=request_too_large"
+            f"max_tokens_in_flight={scheduler.config.max_tokens_in_flight} "
+            f"reason=request_too_large"
         )
         raise HTTPException(
             status_code=413,
@@ -67,7 +76,7 @@ async def generate(req: GenerateRequest):
                 "error": "request_too_large",
                 "message": (
                     f"request requires {gen_req.reserved_tokens} reserved tokens, "
-                    f"but scheduler capacity is {scheduler.max_tokens_in_flight}"
+                    f"but scheduler capacity is {scheduler.config.max_tokens_in_flight}"
                 ),
             },
         )
@@ -75,9 +84,9 @@ async def generate(req: GenerateRequest):
     await store.add_waiting_request(gen_req)
 
     logger.info(
-        f"[submit] request_id={request_id} prompt={req.prompt!r} "
+        f"[submit] request_id={request_id} "
         f"prompt_tokens={gen_req.prompt_tokens} reserved_tokens={gen_req.reserved_tokens} "
-        f"max_new_tokens={req.max_new_tokens} state={gen_req.state}"
+        f"max_new_tokens={req.max_new_tokens} state={gen_req.state} prompt={req.prompt!r}"
     )
 
     return {
@@ -119,11 +128,30 @@ async def scheduler_debug():
     async with store.lock:
         return {
             "tick": scheduler.tick,
-            "max_tokens_in_flight": scheduler.max_tokens_in_flight,
-            "current_tokens_in_flight": scheduler.current_tokens_in_flight,
-            "max_prefill_per_tick": scheduler.max_prefill_per_tick,
+            "max_tokens_in_flight": scheduler.config.max_tokens_in_flight,
+            "current_tokens_in_flight": scheduler.stats.current_tokens,
+            "max_prefill_per_tick": scheduler.config.max_prefill_per_tick,
             "waiting_queue_size": len(store.waiting_queue),
             "active_request_ids": list(store.active_requests.keys()),
             "finished_request_ids": list(store.finished_requests.keys()),
             "all_request_ids": list(store.all_requests.keys()),
+            "kv": {
+                "capacity": scheduler.kv_manager.capacity,
+                "used":  scheduler.kv_manager.used,
+                "available": scheduler.kv_manager.available,
+                "reserved_for_decode": scheduler.kv_manager.decode_reserved,
+                "utilization": scheduler.kv_manager.utilization
+            },
+            "token_utilization": scheduler.stats.current_tokens // scheduler.config.max_tokens_in_flight,
+            "kv_block_size": scheduler.config.kv_block_size,
+            "max_active_sequences": scheduler.config.max_active_sequences,
+            "active_sequences": scheduler.stats.active_sequences,
+            "stats": {
+                "admitted_requests": scheduler.stats.admitted_requests,
+                "completed_requests": scheduler.stats.completed_requests,
+                "admission_blocked_ticks": scheduler.stats.admission_blocked_ticks,
+                "blocked_by_kv_capacity": scheduler.stats.blocked_by_kv_capacity,
+                "blocked_by_token_budget": scheduler.stats.blocked_by_token_budget,
+                "blocked_by_active_sequences": scheduler.stats.blocked_by_active_sequences,
+            },
         }

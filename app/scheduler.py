@@ -1,5 +1,6 @@
 import asyncio
 import time
+from dataclasses import dataclass
 from typing import List
 
 from app.models import RequestState, GenerationRequest
@@ -9,35 +10,114 @@ from app.engine import FakeModelEngine
 from app.logger_config import setup_logger
 
 
+@dataclass(frozen=True)
+class SchedulerConfig:
+    max_active_sequences: int
+    max_batch_tokens: int
+    max_kv_capacity: int
+    kv_block_size: int = 16
+
+    max_tokens_in_flight: int = 20
+    max_prefill_per_tick: int = 4
+    tick_interval_s: float = 0.1
+    log_empty_ticks: bool = False
+
+    def __post_init__(self) -> None:
+        if self.max_tokens_in_flight < 1:
+            raise ValueError("max_tokens_in_flight must be >= 1")
+        if self.max_prefill_per_tick < 0:
+            raise ValueError("max_prefill_per_tick must be >= 0")
+        if self.tick_interval_s <= 0:
+            raise ValueError("tick_interval_s must be > 0")
+
+
+@dataclass
+class SchedulerStats:
+    current_tokens: int = 0
+    admission_blocked_ticks: int = 0
+    blocked_by_active_sequences: int = 0
+    blocked_by_token_budget: int = 0
+    blocked_by_kv_capacity: int = 0
+    admitted_requests: int = 0
+    completed_requests: int = 0
+
+    @property
+    def active_sequences(self):
+        return len(self.store.active_requests)
+
+
+class KVMemoryManager:
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.used = 0
+        self.decode_reserved = 0
+
+    @property
+    def available(self) -> int:
+        return self.capacity - self.used
+
+    @property
+    def allocatable(self) -> int:
+        allocatable = self.capacity - self.used - self.decode_reserved
+        return max(0, allocatable)
+
+    def allocate_admission(self, prompt_tokens: int) -> None:
+        self.used += prompt_tokens
+
+    def allocate_decode_growth(self, decode_tokens: int) -> None:
+        self.used += decode_tokens
+
+    def free_request(self, cached_tokens: int) -> None:
+        self.used -= cached_tokens
+
+    def reset_used(self) -> None:
+        self.used = 0
+
+    def reserve_decode(self, num_sequences: int) -> None:
+        self.decode_reserved = min(num_sequences, self.available)
+
+    def build_decode_batch(self, active_requests: List[GenerationRequest]) -> List[GenerationRequest]:
+        return active_requests[:self.decode_reserved]
+
+    # def reserve_and_build_decode_batch(self, active_requests: List[GenerationRequest]) -> List[GenerationRequest]:
+    #     self.decode_reserved = min(len(active_requests), self.available)
+    #     return active_requests[:self.decode_reserved]
+
+    def release_decode_reserved(self) -> None:
+        self.decode_reserved = 0
+
+    def fmt_kv_usage(self) -> str:
+        return f"{self.used}/{self.capacity}"
+
+    @property
+    def utilization(self) -> float:
+        return 0.0 if self.capacity == 0 else self.used / self.capacity
+
 class Scheduler:
     def __init__(
         self,
         store: RequestStore,
         engine: FakeModelEngine,
-        max_tokens_in_flight: int = 20,
-        max_prefill_per_tick: int = 4,
-        tick_interval_s: float = 0.1,
+        config: SchedulerConfig | None = None,
     ) -> None:
-        if max_prefill_per_tick < 0:
-            raise ValueError("max_prefill_per_tick must be >= 0")
         self.store = store
         self.engine = engine
-        if max_tokens_in_flight < 1:
-            raise ValueError("max_tokens_in_flight must be >= 1")
-        self.max_tokens_in_flight = max_tokens_in_flight
-        self.current_tokens_in_flight = 0
 
-        self.max_prefill_per_tick = max_prefill_per_tick
-        self.tick_interval_s = tick_interval_s
+        if config is None:
+            raise ValueError("SchedulerConfig must be provided")
+        self.config = config
+
+        self.stats = SchedulerStats()
+        self.kv_manager = KVMemoryManager(config.max_kv_capacity)
+
         self.tick = 0
         self.logger = setup_logger()
-        self.log_empty_ticks = False
 
     async def run_forever(self) -> None:
         while True:
             self.tick += 1
             await self._run_one_tick()
-            await asyncio.sleep(self.tick_interval_s)
+            await asyncio.sleep(self.config.tick_interval_s)
 
     @staticmethod
     def _estimate_needed_tokens(req: GenerationRequest) -> int:
@@ -47,13 +127,36 @@ class Scheduler:
         return max(0, req.prompt_tokens) + req.max_new_tokens
 
     def _fmt_tokens_in_flight(self) -> str:
-        return f"{self.current_tokens_in_flight}/{self.max_tokens_in_flight}"
+        return f"{self.stats.current_tokens}/{self.config.max_tokens_in_flight}"
+
+    def get_admission_block_reason(self, req: GenerationRequest) -> str | None:
+        needed = self._estimate_needed_tokens(req)
+
+        if len(self.store.active_requests) >= self.config.max_active_sequences:
+            return "active_sequences"
+
+        if self.stats.current_tokens + needed > self.config.max_tokens_in_flight:
+            return "token_budget"
+
+        if req.prompt_tokens > self.kv_manager.allocatable:
+            return "kv_capacity"
+
+        return None
 
     async def _run_one_tick(self) -> None:
         admitted_ids = []
         prefill_ids = []
         decode_results = []
         finished_ids = []
+
+        # Invariant:
+        # All requests in active_requests have completed prefill.
+        # Therefore active_sequences == decode_candidates.
+        async with self.store.lock:
+            decode_snapshot = list(self.store.active_requests.values())
+        self.kv_manager.reserve_decode(len(decode_snapshot))
+        decode_targets = self.kv_manager.build_decode_batch(decode_snapshot)
+        # decode_targets = self.kv_manager.reserve_and_build_decode_batch(active_snapshot)
 
         # Step 1: admit from waiting queue while token budget allows
         async with self.store.lock:
@@ -62,48 +165,78 @@ class Scheduler:
                 # Possible solution: look beyond the head of the queue for requests that fit in the token budget, but this adds complexity and may cause starvation of large requests.
                 peek = self.store.waiting_queue[0]
                 needed = self._estimate_needed_tokens(peek)
-                if self.current_tokens_in_flight + needed > self.max_tokens_in_flight:
+
+                block_reason = self.get_admission_block_reason(peek)
+                if block_reason is not None:
+                    self.stats.admission_blocked_ticks += 1
+                    if block_reason == "active_sequences":
+                        self.stats.blocked_by_active_sequences += 1
+                    elif block_reason == "token_budget":
+                        self.stats.blocked_by_token_budget += 1
+                    elif block_reason == "kv_capacity":
+                        self.stats.blocked_by_kv_capacity += 1
+
                     self.logger.info(
-                        "[admission_blocked] head_request_id=%s prompt_tokens=%d "
-                        "reserved_tokens=%d needed_tokens=%d tokens_in_flight=%s",
+                        "[admission_blocked] reason=%s head_request_id=%s prompt_tokens=%d "
+                        "reserved_tokens=%d needed_tokens=%d "
+                        "tokens_in_flight=%s kv_usage=%s active_sequences=%d/%d",
+                        block_reason,
                         peek.request_id,
                         peek.prompt_tokens,
                         peek.reserved_tokens,
                         needed,
                         self._fmt_tokens_in_flight(),
+                        self.kv_manager.fmt_kv_usage(),
+                        len(self.store.active_requests),
+                        self.config.max_active_sequences,
                     )
                     break
+
                 req = self.store.waiting_queue.popleft()
                 if req.reserved_tokens <= 0:
                     req.reserved_tokens = needed
-                self.current_tokens_in_flight += needed
+                self.stats.current_tokens += needed
+
+                req.update_kv_usage(self.config.kv_block_size)
+                self.kv_manager.allocate_admission(req.cached_tokens)
+
                 req.state = RequestState.PREFILL
                 req.admitted_time = time.time()
                 # req.queue_wait_ms = (req.admitted_time - req.arrival_time) * 1000
                 self.store.active_requests[req.request_id] = req
+                self.stats.admitted_requests += 1
+                # self.stats.active_sequences += 1
                 admitted_ids.append(req.request_id)
                 self.logger.info(
                     "[admit] request_id=%s prompt_tokens=%d reserved_tokens=%d "
-                    "tokens_in_flight=%s",
+                    "tokens_in_flight=%s kv_usage=%s kv_blocks_used=%d",
                     req.request_id,
                     req.prompt_tokens,
                     req.reserved_tokens,
                     self._fmt_tokens_in_flight(),
+                    self.kv_manager.fmt_kv_usage(),
+                    req.kv_blocks_used,
                 )
 
+        # This active_requests contains prefill status request (newly admission requests)
+        async with self.store.lock:
             active_snapshot = list(self.store.active_requests.values())
 
         # Step 2: snapshot decode-phase requests (before prefill moves PREFILL -> DECODE)
-        decode_targets: List[GenerationRequest] = [
-            req for req in active_snapshot
-            if req.state == RequestState.DECODE
-        ]
+        # decode_candidates: List[GenerationRequest] = [
+        #     req for req in active_snapshot
+        #     if req.state == RequestState.DECODE
+        # ]
+        #decode_budget = min(len(decode_candidates), available_growth)
+        # decode_targets = decode_candidates[:self.kv_manager.decode_reserved]
+        # decode_targets = self.kv_manager.select_decode_batch(decode_candidates)
+        # self.kv_manager.decode_reserved = len(decode_targets)
 
         # Step 3: prefill active requests still in PREFILL (at most max_prefill_per_tick per tick)
         prefill_targets: List[GenerationRequest] = [
             req for req in active_snapshot
             if req.state == RequestState.PREFILL and not req.prefill_done
-        ][: self.max_prefill_per_tick]
+        ][: self.config.max_prefill_per_tick]
 
         for req in prefill_targets:
             req.prefill_start_time = time.time()
@@ -113,11 +246,18 @@ class Scheduler:
             req.state = RequestState.DECODE
             prefill_ids.append(req.request_id)
 
-        # Step 4: one shared decode step only for the decode snapshot (not this tick's new DECODE)
+        # Step 4: Decode: one shared decode step only for the decode snapshot (not this tick's new DECODE)
         active_before_finish = [req.request_id for req in decode_targets]
 
         if decode_targets:
-            decode_results = await self.engine.decode_step(decode_targets)
+            try:
+                decode_results = await self.engine.decode_step(decode_targets)
+                async with self.store.lock:
+                    for req in decode_targets:
+                        req.update_kv_usage(self.config.kv_block_size)
+                    self.kv_manager.allocate_decode_growth(len(decode_results))
+            finally:
+                self.kv_manager.release_decode_reserved()
 
         # Step 5: finish requests that hit max_new_tokens
         async with self.store.lock:
@@ -127,9 +267,9 @@ class Scheduler:
                     req.state = RequestState.FINISHED
                     req.finished_time = time.time()
 
-                    self.current_tokens_in_flight -= req.reserved_tokens
-                    if self.current_tokens_in_flight < 0:
-                        self.current_tokens_in_flight = 0
+                    self.stats.current_tokens -= req.reserved_tokens
+                    if self.stats.current_tokens < 0:
+                        self.stats.current_tokens = 0
 
                     req.total_latency_ms = (req.finished_time - req.arrival_time) * 1000
 
@@ -159,6 +299,10 @@ class Scheduler:
             completed_requests = []
             for request_id in to_finish:
                 req = self.store.active_requests.pop(request_id)
+                # self.kv_manager.used -= req.cached_tokens
+                self.kv_manager.free_request(req.cached_tokens)
+                self.stats.completed_requests += 1
+                # self.stats.active_sequences -= 1
                 self.store.finished_requests[request_id] = req
                 finished_ids.append(request_id)
                 completed_requests.append(req)
@@ -214,7 +358,7 @@ class Scheduler:
     ) -> None:
         has_event = bool(admitted_ids or prefill_ids or decode_results or finished_ids)
 
-        if not has_event and not self.log_empty_ticks:
+        if not has_event and not self.config.log_empty_ticks:
             return
 
         decode_str = " ".join([f"{rid}->{tok}" for rid, tok in decode_results]) or "none"
@@ -230,6 +374,7 @@ class Scheduler:
             f"[tick={self.tick}] "
             f"waiting={waiting_size} "
             f"tokens_in_flight={self._fmt_tokens_in_flight()} "
+            f"kv_usage={self.kv_manager.fmt_kv_usage()} "
             f"admit={admit_str} "
             f"active_before_finish={active_before_finish_str} "
             f"prefill_batch_size={prefill_batch_size} "

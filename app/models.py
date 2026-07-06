@@ -2,6 +2,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional
 import time
+import math
 
 
 class RequestState(str, Enum):
@@ -17,6 +18,10 @@ class GenerationRequest:
     prompt: str
     max_new_tokens: int
     generated_tokens: list[str] = field(default_factory=list)
+
+    cached_tokens: int = 0
+    kv_blocks_used: int = 0
+
     state: RequestState = RequestState.WAITING
 
     prompt_tokens: int = 0
@@ -38,3 +43,7 @@ class GenerationRequest:
     decode_tail_ms: float | None = None
     total_latency_ms: float | None = None
     service_time_ms: Optional[float] = None
+
+    def update_kv_usage(self, block_size: int) -> None:
+        self.cached_tokens = self.prompt_tokens + len(self.generated_tokens)
+        self.kv_blocks_used = math.ceil(self.cached_tokens / block_size)
