@@ -5,7 +5,7 @@ from typing import List
 
 from app.models import RequestState, GenerationRequest
 from app.store import RequestStore
-from app.engine import FakeModelEngine
+from app.engine import ModelEngine
 
 from app.logger_config import setup_logger
 
@@ -97,7 +97,7 @@ class Scheduler:
     def __init__(
         self,
         store: RequestStore,
-        engine: FakeModelEngine,
+        engine: ModelEngine,
         config: SchedulerConfig | None = None,
     ) -> None:
         self.store = store

@@ -2,7 +2,7 @@ import asyncio
 import time
 
 from app.store import RequestStore
-from app.engine import FakeModelEngine
+from app.engine import FakeEngine
 from app.scheduler import Scheduler, SchedulerConfig
 from app.models import GenerationRequest, RequestState
 
@@ -27,7 +27,7 @@ async def run_scheduler_ticks(scheduler: Scheduler, ticks: int = 20):
 
 def test_single_request_kv_growth():
     store = RequestStore()
-    engine = FakeModelEngine()
+    engine = FakeEngine()
 
     scheduler = Scheduler(
         store=store,
@@ -61,7 +61,7 @@ def test_single_request_kv_growth():
 
 def test_no_double_kv_counting():
     store = RequestStore()
-    engine = FakeModelEngine()
+    engine = FakeEngine()
 
     scheduler = Scheduler(
         store=store,
@@ -94,7 +94,7 @@ def test_no_double_kv_counting():
 
 def test_multi_request_fairness_and_isolation():
     store = RequestStore()
-    engine = FakeModelEngine()
+    engine = FakeEngine()
 
     scheduler = Scheduler(
         store=store,
@@ -136,7 +136,7 @@ def test_multi_request_fairness_and_isolation():
 
 def test_token_budget_never_explodes():
     store = RequestStore()
-    engine = FakeModelEngine()
+    engine = FakeEngine()
 
     scheduler = Scheduler(
         store=store,
@@ -166,7 +166,7 @@ def test_token_budget_never_explodes():
 
 def test_kv_matches_active_requests():
     store = RequestStore()
-    engine = FakeModelEngine()
+    engine = FakeEngine()
 
     scheduler = Scheduler(
         store=store,
@@ -201,7 +201,7 @@ def test_kv_matches_active_requests():
 
 def test_no_kv_double_count_across_ticks():
     store = RequestStore()
-    engine = FakeModelEngine()
+    engine = FakeEngine()
 
     scheduler = Scheduler(
         store=store,
@@ -233,9 +233,9 @@ def test_no_kv_double_count_across_ticks():
         assert scheduler.kv_manager.used < 500
 
     asyncio.run(scenario())
-# test_single_request_kv_growth()
+test_single_request_kv_growth()
 # test_no_double_kv_counting()
 # test_multi_request_fairness_and_isolation()
 # test_token_budget_never_explodes()
 # test_kv_matches_active_requests()
-test_no_kv_double_count_across_ticks()
+# test_no_kv_double_count_across_ticks()

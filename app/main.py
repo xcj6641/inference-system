@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.models import GenerationRequest
 from app.store import RequestStore
-from app.engine import FakeModelEngine
+from app.engine import FakeEngine
 from app.scheduler import Scheduler, SchedulerConfig, SchedulerStats
 from app.logger_config import setup_logger
 
@@ -15,7 +15,7 @@ from app.logger_config import setup_logger
 app = FastAPI()
 
 store = RequestStore()
-engine = FakeModelEngine()
+engine = FakeEngine()
 scheduler = Scheduler(
     store=store,
     engine=engine,

@@ -2,6 +2,7 @@ import asyncio
 import time
 
 from app.models import GenerationRequest
+from .base import ModelEngine
 
 PREFILL_COST_PER_TOKEN = 0.002   # 2ms / token
 MIN_PREFILL_COST = 0.005         # optional
@@ -9,7 +10,12 @@ MIN_PREFILL_COST = 0.005         # optional
 DECODE_COST_PER_SEQ = 0.003   # 3ms / active seq / decode round
 MIN_DECODE_COST = 0.002
 
-class FakeModelEngine:
+class FakeEngine(ModelEngine):
+
+    @property
+    def backend_name(self):
+        return "fake"
+
     async def prefill(self, req: GenerationRequest) -> None:
         prefill_cost = max(MIN_PREFILL_COST, req.prompt_tokens * PREFILL_COST_PER_TOKEN)
         await asyncio.sleep(prefill_cost)
