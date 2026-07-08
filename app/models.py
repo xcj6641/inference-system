@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import time
 import math
+import asyncio
 
 
 class RequestState(str, Enum):
@@ -11,13 +12,23 @@ class RequestState(str, Enum):
     DECODE = "DECODE"
     FINISHED = "FINISHED"
 
+END_OF_STREAM = object()
 
+
+# ├── state
+# ├── KV cache
+# ├── generated tokens
+# └── token stream
 @dataclass
 class GenerationRequest:
     request_id: str
     prompt: str
     max_new_tokens: int
     generated_tokens: list[str] = field(default_factory=list)
+
+    token_stream: asyncio.Queue = field(
+        default_factory=lambda: asyncio.Queue(maxsize=32)
+    )
 
     cached_tokens: int = 0
     kv_blocks_used: int = 0

@@ -11,5 +11,8 @@ run the server:
 uvicorn app.main:app --reload --no-access-log
 MAX_KV_CAPACITY=128 uvicorn app.main:app --reload
 
+terminate the server:
+pkill -f uvicorn
+
 run test:
 python test_scheduler.py

@@ -1,0 +1,127 @@
+# DECODE_COST_PER_SEQ = 0.003
+# run 
+# curl -N -X POST http://localhost:8000/generate \
+#  -H "Content-Type: application/json" \
+#  -d '{"prompt":"Request A","max_new_tokens":10}'
+
+# curl -N -X POST http://localhost:8000/generate \
+# -H "Content-Type: application/json" \
+# -d '{"prompt":"Request B","max_new_tokens":10}'
+
+2026-07-07 09:46:12 INFO [submit] request_id=b87ebb61 prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 state=RequestState.WAITING prompt='Request A'
+2026-07-07 09:46:12 INFO [admit] request_id=b87ebb61 prompt_tokens=2 reserved_tokens=12 tokens_in_flight=12/512 kv_usage=2/128 kv_blocks_used=1
+2026-07-07 09:46:12 INFO [tick=2688] waiting=0 tokens_in_flight=12/512 kv_usage=2/128 admit=b87ebb61 active_before_finish=none prefill_batch_size=1 prefill_done=b87ebb61 decode_batch_size=0 decode=none finish=none active_after_finish=b87ebb61
+2026-07-07 09:46:12 INFO [tick=2689] waiting=0 tokens_in_flight=12/512 kv_usage=3/128 admit=none active_before_finish=b87ebb61 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b87ebb61->tok1 finish=none active_after_finish=b87ebb61
+2026-07-07 09:46:12 INFO [tick=2690] waiting=0 tokens_in_flight=12/512 kv_usage=4/128 admit=none active_before_finish=b87ebb61 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b87ebb61->tok2 finish=none active_after_finish=b87ebb61
+2026-07-07 09:46:12 INFO [tick=2691] waiting=0 tokens_in_flight=12/512 kv_usage=5/128 admit=none active_before_finish=b87ebb61 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b87ebb61->tok3 finish=none active_after_finish=b87ebb61
+2026-07-07 09:46:12 INFO [tick=2692] waiting=0 tokens_in_flight=12/512 kv_usage=6/128 admit=none active_before_finish=b87ebb61 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b87ebb61->tok4 finish=none active_after_finish=b87ebb61
+2026-07-07 09:46:12 INFO [tick=2693] waiting=0 tokens_in_flight=12/512 kv_usage=7/128 admit=none active_before_finish=b87ebb61 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b87ebb61->tok5 finish=none active_after_finish=b87ebb61
+2026-07-07 09:46:12 INFO [submit] request_id=fa2ed00a prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 state=RequestState.WAITING prompt='Request B'
+2026-07-07 09:46:12 INFO [admit] request_id=fa2ed00a prompt_tokens=2 reserved_tokens=12 tokens_in_flight=24/512 kv_usage=9/128 kv_blocks_used=1
+2026-07-07 09:46:12 INFO [tick=2694] waiting=0 tokens_in_flight=24/512 kv_usage=10/128 admit=fa2ed00a active_before_finish=b87ebb61 prefill_batch_size=1 prefill_done=fa2ed00a decode_batch_size=1 decode=b87ebb61->tok6 finish=none active_after_finish=b87ebb61,fa2ed00a
+2026-07-07 09:46:12 INFO [tick=2695] waiting=0 tokens_in_flight=24/512 kv_usage=12/128 admit=none active_before_finish=b87ebb61,fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b87ebb61->tok7 fa2ed00a->tok1 finish=none active_after_finish=b87ebb61,fa2ed00a
+2026-07-07 09:46:12 INFO [tick=2696] waiting=0 tokens_in_flight=24/512 kv_usage=14/128 admit=none active_before_finish=b87ebb61,fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b87ebb61->tok8 fa2ed00a->tok2 finish=none active_after_finish=b87ebb61,fa2ed00a
+2026-07-07 09:46:13 INFO [tick=2697] waiting=0 tokens_in_flight=24/512 kv_usage=16/128 admit=none active_before_finish=b87ebb61,fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b87ebb61->tok9 fa2ed00a->tok3 finish=none active_after_finish=b87ebb61,fa2ed00a
+2026-07-07 09:46:13 INFO [tick=2698] waiting=0 tokens_in_flight=12/512 kv_usage=6/128 admit=none active_before_finish=b87ebb61,fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b87ebb61->tok10 fa2ed00a->tok4 finish=b87ebb61 active_after_finish=fa2ed00a
+2026-07-07 09:46:13 INFO [complete] request_id=b87ebb61 prompt='Request A' prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 generated_tokens=10 queue_wait_ms=14.2 prefill_wait_ms=0.1 prefill_ms=5.7 ttft_ms=124.4 decode_tail_ms=960.9 service_time_ms=1071.0 total_latency_ms=1085.2 tokens_in_flight=12/512
+2026-07-07 09:46:13 INFO [tick=2699] waiting=0 tokens_in_flight=12/512 kv_usage=7/128 admit=none active_before_finish=fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=fa2ed00a->tok5 finish=none active_after_finish=fa2ed00a
+2026-07-07 09:46:13 INFO [tick=2700] waiting=0 tokens_in_flight=12/512 kv_usage=8/128 admit=none active_before_finish=fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=fa2ed00a->tok6 finish=none active_after_finish=fa2ed00a
+2026-07-07 09:46:13 INFO [tick=2701] waiting=0 tokens_in_flight=12/512 kv_usage=9/128 admit=none active_before_finish=fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=fa2ed00a->tok7 finish=none active_after_finish=fa2ed00a
+2026-07-07 09:46:13 INFO [tick=2702] waiting=0 tokens_in_flight=12/512 kv_usage=10/128 admit=none active_before_finish=fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=fa2ed00a->tok8 finish=none active_after_finish=fa2ed00a
+2026-07-07 09:46:13 INFO [tick=2703] waiting=0 tokens_in_flight=12/512 kv_usage=11/128 admit=none active_before_finish=fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=fa2ed00a->tok9 finish=none active_after_finish=fa2ed00a
+2026-07-07 09:46:13 INFO [tick=2704] waiting=0 tokens_in_flight=0/512 kv_usage=0/128 admit=none active_before_finish=fa2ed00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=fa2ed00a->tok10 finish=fa2ed00a active_after_finish=none
+2026-07-07 09:46:13 INFO [complete] request_id=fa2ed00a prompt='Request B' prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 generated_tokens=10 queue_wait_ms=8.4 prefill_wait_ms=0.1 prefill_ms=5.7 ttft_ms=124.5 decode_tail_ms=953.0 service_time_ms=1069.1 total_latency_ms=1077.5 tokens_in_flight=0/512
+
+
+[terminal A]
+(base) shujunchen@Shujuns-MacBook-Air inference-system % curl -N -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Request A","max_new_tokens":10}'
+{"request_id": "b87ebb61", "token": "tok1"}
+{"request_id": "b87ebb61", "token": "tok2"}
+{"request_id": "b87ebb61", "token": "tok3"}
+{"request_id": "b87ebb61", "token": "tok4"}
+{"request_id": "b87ebb61", "token": "tok5"}
+{"request_id": "b87ebb61", "token": "tok6"}
+{"request_id": "b87ebb61", "token": "tok7"}
+{"request_id": "b87ebb61", "token": "tok8"}
+{"request_id": "b87ebb61", "token": "tok9"}
+{"request_id": "b87ebb61", "token": "tok10"}
+
+[terminal B]
+(.venv) (base) shujunchen@Shujuns-MacBook-Air inference-system % curl -N -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Request B","max_new_tokens":10}'
+{"request_id": "fa2ed00a", "token": "tok1"}
+{"request_id": "fa2ed00a", "token": "tok2"}
+{"request_id": "fa2ed00a", "token": "tok3"}
+{"request_id": "fa2ed00a", "token": "tok4"}
+{"request_id": "fa2ed00a", "token": "tok5"}
+{"request_id": "fa2ed00a", "token": "tok6"}
+{"request_id": "fa2ed00a", "token": "tok7"}
+{"request_id": "fa2ed00a", "token": "tok8"}
+{"request_id": "fa2ed00a", "token": "tok9"}
+{"request_id": "fa2ed00a", "token": "tok10"}
+
+
+
+
+# # DECODE_COST_PER_SEQ = 0.2
+# run 
+# curl -N -X POST http://localhost:8000/generate \
+#  -H "Content-Type: application/json" \
+#  -d '{"prompt":"Request A","max_new_tokens":10}'
+
+# curl -N -X POST http://localhost:8000/generate \
+# -H "Content-Type: application/json" \
+# -d '{"prompt":"Request B","max_new_tokens":10}'
+2026-07-07 10:21:53 INFO [submit] request_id=237501d8 prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 state=RequestState.WAITING prompt='Request A'
+2026-07-07 10:21:53 INFO [admit] request_id=237501d8 prompt_tokens=2 reserved_tokens=12 tokens_in_flight=12/512 kv_usage=2/128 kv_blocks_used=1
+2026-07-07 10:21:53 INFO [tick=989] waiting=0 tokens_in_flight=12/512 kv_usage=2/128 admit=237501d8 active_before_finish=none prefill_batch_size=1 prefill_done=237501d8 decode_batch_size=0 decode=none finish=none active_after_finish=237501d8
+2026-07-07 10:21:53 INFO [tick=990] waiting=0 tokens_in_flight=12/512 kv_usage=3/128 admit=none active_before_finish=237501d8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=237501d8->tok1 finish=none active_after_finish=237501d8
+2026-07-07 10:21:53 INFO [tick=991] waiting=0 tokens_in_flight=12/512 kv_usage=4/128 admit=none active_before_finish=237501d8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=237501d8->tok2 finish=none active_after_finish=237501d8
+2026-07-07 10:21:54 INFO [submit] request_id=9bf1bb1b prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 state=RequestState.WAITING prompt='Request B'
+2026-07-07 10:21:54 INFO [admit] request_id=9bf1bb1b prompt_tokens=2 reserved_tokens=12 tokens_in_flight=24/512 kv_usage=6/128 kv_blocks_used=1
+2026-07-07 10:21:54 INFO [tick=992] waiting=0 tokens_in_flight=24/512 kv_usage=7/128 admit=9bf1bb1b active_before_finish=237501d8 prefill_batch_size=1 prefill_done=9bf1bb1b decode_batch_size=1 decode=237501d8->tok3 finish=none active_after_finish=237501d8,9bf1bb1b
+2026-07-07 10:21:54 INFO [tick=993] waiting=0 tokens_in_flight=24/512 kv_usage=9/128 admit=none active_before_finish=237501d8,9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=237501d8->tok4 9bf1bb1b->tok1 finish=none active_after_finish=237501d8,9bf1bb1b
+2026-07-07 10:21:55 INFO [tick=994] waiting=0 tokens_in_flight=24/512 kv_usage=11/128 admit=none active_before_finish=237501d8,9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=237501d8->tok5 9bf1bb1b->tok2 finish=none active_after_finish=237501d8,9bf1bb1b
+2026-07-07 10:21:55 INFO [tick=995] waiting=0 tokens_in_flight=24/512 kv_usage=13/128 admit=none active_before_finish=237501d8,9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=237501d8->tok6 9bf1bb1b->tok3 finish=none active_after_finish=237501d8,9bf1bb1b
+2026-07-07 10:21:56 INFO [tick=996] waiting=0 tokens_in_flight=24/512 kv_usage=15/128 admit=none active_before_finish=237501d8,9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=237501d8->tok7 9bf1bb1b->tok4 finish=none active_after_finish=237501d8,9bf1bb1b
+2026-07-07 10:21:56 INFO [tick=997] waiting=0 tokens_in_flight=24/512 kv_usage=17/128 admit=none active_before_finish=237501d8,9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=237501d8->tok8 9bf1bb1b->tok5 finish=none active_after_finish=237501d8,9bf1bb1b
+2026-07-07 10:21:57 INFO [tick=998] waiting=0 tokens_in_flight=24/512 kv_usage=19/128 admit=none active_before_finish=237501d8,9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=237501d8->tok9 9bf1bb1b->tok6 finish=none active_after_finish=237501d8,9bf1bb1b
+2026-07-07 10:21:57 INFO [tick=999] waiting=0 tokens_in_flight=12/512 kv_usage=9/128 admit=none active_before_finish=237501d8,9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=237501d8->tok10 9bf1bb1b->tok7 finish=237501d8 active_after_finish=9bf1bb1b
+2026-07-07 10:21:57 INFO [complete] request_id=237501d8 prompt='Request A' prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 generated_tokens=10 queue_wait_ms=12.0 prefill_wait_ms=0.1 prefill_ms=5.7 ttft_ms=319.5 decode_tail_ms=4122.7 service_time_ms=4430.2 total_latency_ms=4442.3 tokens_in_flight=12/512
+2026-07-07 10:21:58 INFO [tick=1000] waiting=0 tokens_in_flight=12/512 kv_usage=10/128 admit=none active_before_finish=9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=9bf1bb1b->tok8 finish=none active_after_finish=9bf1bb1b
+2026-07-07 10:21:58 INFO [tick=1001] waiting=0 tokens_in_flight=12/512 kv_usage=11/128 admit=none active_before_finish=9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=9bf1bb1b->tok9 finish=none active_after_finish=9bf1bb1b
+2026-07-07 10:21:58 INFO [tick=1002] waiting=0 tokens_in_flight=0/512 kv_usage=0/128 admit=none active_before_finish=9bf1bb1b prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=9bf1bb1b->tok10 finish=9bf1bb1b active_after_finish=none
+2026-07-07 10:21:58 INFO [complete] request_id=9bf1bb1b prompt='Request B' prompt_tokens=2 reserved_tokens=12 max_new_tokens=10 generated_tokens=10 queue_wait_ms=18.6 prefill_wait_ms=0.1 prefill_ms=5.7 ttft_ms=726.5 decode_tail_ms=3921.5 service_time_ms=4629.4 total_latency_ms=4648.0 tokens_in_flight=0/512
+
+
+(.venv) (base) shujunchen@Shujuns-MacBook-Air inference-system % curl -N -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Request B","max_new_tokens":10}'
+{"request_id": "9bf1bb1b", "token": "tok1"}
+{"request_id": "9bf1bb1b", "token": "tok2"}
+{"request_id": "9bf1bb1b", "token": "tok3"}
+{"request_id": "9bf1bb1b", "token": "tok4"}
+{"request_id": "9bf1bb1b", "token": "tok5"}
+{"request_id": "9bf1bb1b", "token": "tok6"}
+{"request_id": "9bf1bb1b", "token": "tok7"}
+{"request_id": "9bf1bb1b", "token": "tok8"}
+{"request_id": "9bf1bb1b", "token": "tok9"}
+{"request_id": "9bf1bb1b", "token": "tok10"}
+
+
+(base) shujunchen@Shujuns-MacBook-Air inference-system % curl -N -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Request A","max_new_tokens":10}'
+{"request_id": "237501d8", "token": "tok1"}
+{"request_id": "237501d8", "token": "tok2"}
+{"request_id": "237501d8", "token": "tok3"}
+{"request_id": "237501d8", "token": "tok4"}
+{"request_id": "237501d8", "token": "tok5"}
+{"request_id": "237501d8", "token": "tok6"}
+{"request_id": "237501d8", "token": "tok7"}
+{"request_id": "237501d8", "token": "tok8"}
+{"request_id": "237501d8", "token": "tok9"}
+{"request_id": "237501d8", "token": "tok10"}

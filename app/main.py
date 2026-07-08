@@ -1,11 +1,13 @@
 import asyncio
 import uuid
 import os
+import json
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.models import GenerationRequest
+from app.models import GenerationRequest, END_OF_STREAM
 from app.store import RequestStore
 from app.engine import FakeEngine
 from app.scheduler import Scheduler, SchedulerConfig, SchedulerStats
@@ -51,6 +53,19 @@ def estimate_prompt_tokens(prompt: str) -> int:
     # 如果你想更稳定一点，也可以 max(1, len(prompt.split()))
     return max(1, len(prompt.split()))
 
+
+async def stream(req: GenerateRequest):
+    while True:
+        token = await req.token_stream.get()
+
+        if token is END_OF_STREAM:
+            break
+
+        yield json.dumps({
+            "request_id": req.request_id,
+            "token": token,
+        }) + "\n"
+
 @app.post("/generate")
 async def generate(req: GenerateRequest):
     request_id = str(uuid.uuid4())[:8]
@@ -89,11 +104,14 @@ async def generate(req: GenerateRequest):
         f"max_new_tokens={req.max_new_tokens} state={gen_req.state} prompt={req.prompt!r}"
     )
 
-    return {
-        "request_id": request_id,
-        "state": gen_req.state,
-    }
-
+    # return {
+    #     "request_id": request_id,
+    #     "state": gen_req.state,
+    # }
+    return StreamingResponse(
+        stream(gen_req),
+        media_type="application/x-ndjson",
+    )
 
 @app.get("/requests/{request_id}")
 async def get_request_status(request_id: str):

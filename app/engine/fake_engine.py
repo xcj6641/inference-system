@@ -7,7 +7,7 @@ from .base import ModelEngine
 PREFILL_COST_PER_TOKEN = 0.002   # 2ms / token
 MIN_PREFILL_COST = 0.005         # optional
 
-DECODE_COST_PER_SEQ = 0.003   # 3ms / active seq / decode round
+DECODE_COST_PER_SEQ = 0.2   # 3ms / active seq / decode round
 MIN_DECODE_COST = 0.002
 
 class FakeEngine(ModelEngine):
@@ -33,7 +33,9 @@ class FakeEngine(ModelEngine):
         decode_done_time = time.time()
         for req in decode_targets:
             next_token = f"tok{len(req.generated_tokens) + 1}"
-            req.generated_tokens.append(next_token)
+            # req.generated_tokens.append(next_token)
+            # await req.token_stream.put(token)
+
             if req.first_decode_time is None:
                 req.first_decode_time = decode_done_time
             decode_results.append((req.request_id, next_token))

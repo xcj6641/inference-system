@@ -1,0 +1,12 @@
+2026-07-07 12:36:51 INFO [submit] request_id=1aa4b44b prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
+2026-07-07 12:37:40 INFO [submit] request_id=5d7645bf prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
+2026-07-07 14:03:49 INFO [submit] request_id=affcf28c prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
+2026-07-07 15:38:57 INFO [submit] request_id=47a3df40 prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
+2026-07-07 15:38:57 INFO [admit] request_id=47a3df40 prompt_tokens=2 reserved_tokens=7 tokens_in_flight=7/512 kv_usage=2/128 kv_blocks_used=1
+2026-07-07 15:38:57 INFO [tick=2] waiting=0 tokens_in_flight=7/512 kv_usage=2/128 admit=47a3df40 active_before_finish=none prefill_batch_size=1 prefill_done=47a3df40 decode_batch_size=0 decode=none finish=none active_after_finish=47a3df40
+2026-07-07 15:38:57 INFO [tick=3] waiting=0 tokens_in_flight=7/512 kv_usage=3/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok1 finish=none active_after_finish=47a3df40
+2026-07-07 15:38:58 INFO [tick=4] waiting=0 tokens_in_flight=7/512 kv_usage=4/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok2 finish=none active_after_finish=47a3df40
+2026-07-07 15:38:58 INFO [tick=5] waiting=0 tokens_in_flight=7/512 kv_usage=5/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok3 finish=none active_after_finish=47a3df40
+2026-07-07 15:38:58 INFO [tick=6] waiting=0 tokens_in_flight=7/512 kv_usage=6/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok4 finish=none active_after_finish=47a3df40
+2026-07-07 15:38:59 INFO [tick=7] waiting=0 tokens_in_flight=0/512 kv_usage=0/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok5 finish=47a3df40 active_after_finish=none
+2026-07-07 15:38:59 INFO [complete] request_id=47a3df40 prompt='hello world' prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 generated_tokens=5 queue_wait_ms=100.6 prefill_wait_ms=0.1 prefill_ms=5.7 ttft_ms=408.6 decode_tail_ms=1211.1 service_time_ms=1519.1 total_latency_ms=1619.7 tokens_in_flight=0/512

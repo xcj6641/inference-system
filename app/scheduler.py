@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass
 from typing import List
 
-from app.models import RequestState, GenerationRequest
+from app.models import RequestState, GenerationRequest, END_OF_STREAM
 from app.store import RequestStore
 from app.engine import ModelEngine
 
@@ -253,7 +253,16 @@ class Scheduler:
             try:
                 decode_results = await self.engine.decode_step(decode_targets)
                 async with self.store.lock:
-                    for req in decode_targets:
+                    # for req in decode_targets:
+                    for req_id, token in decode_results:
+                        req = self.store.active_requests.get(req_id)
+                        if req is None:
+                            continue
+
+                        #public token to stream
+                        req.generated_tokens.append(token)
+                        await req.token_stream.put(token)
+
                         req.update_kv_usage(self.config.kv_block_size)
                     self.kv_manager.allocate_decode_growth(len(decode_results))
             finally:
@@ -266,6 +275,7 @@ class Scheduler:
                 if len(req.generated_tokens) >= req.max_new_tokens:
                     req.state = RequestState.FINISHED
                     req.finished_time = time.time()
+                    await req.token_stream.put(END_OF_STREAM)
 
                     self.stats.current_tokens -= req.reserved_tokens
                     if self.stats.current_tokens < 0:
