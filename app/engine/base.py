@@ -28,8 +28,12 @@ class ModelEngine(ABC):
     async def decode_step(
         self,
         requests: Sequence[GenerationRequest],
-    ) -> list[tuple[str, str]]:
+    ) -> list[tuple[str, str, bool]]:
         """
         Decode exactly one token for each request.
+
+        Returns (request_id, token, finished) tuples, where `finished`
+        signals that the engine has no more tokens to produce for that
+        request (e.g. EOS/stop reached), independent of max_new_tokens.
         """
         raise NotImplementedError

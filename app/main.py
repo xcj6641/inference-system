@@ -9,15 +9,19 @@ from pydantic import BaseModel, Field
 
 from app.models import GenerationRequest, END_OF_STREAM
 from app.store import RequestStore
-from app.engine import FakeEngine
+from app.engine import factory
 from app.scheduler import Scheduler, SchedulerConfig, SchedulerStats
 from app.logger_config import setup_logger
+from app.config import settings
 
+# config.ENGINE_BACKEND = os.getenv("ENGINE_BACKEND", "fake")
+# config.VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://174.129.74.88:8001")
+# config.VLLM_MODEL = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
 
 app = FastAPI()
 
 store = RequestStore()
-engine = FakeEngine()
+engine = factory.create_engine(settings.engine_backend, settings.vllm_base_url, settings.vllm_model)
 scheduler = Scheduler(
     store=store,
     engine=engine,

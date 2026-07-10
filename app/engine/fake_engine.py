@@ -22,14 +22,14 @@ class FakeEngine(ModelEngine):
 
     async def decode_step(
         self, decode_targets: list[GenerationRequest]
-    ) -> list[tuple[str, str]]:
+    ) -> list[tuple[str, str, bool]]:
         if not decode_targets:
             return []
-    
+
         decode_cost = max(MIN_DECODE_COST, len(decode_targets) * DECODE_COST_PER_SEQ)
         await asyncio.sleep(decode_cost)
 
-        decode_results: list[tuple[str, str]] = []
+        decode_results: list[tuple[str, str, bool]] = []
         decode_done_time = time.time()
         for req in decode_targets:
             next_token = f"tok{len(req.generated_tokens) + 1}"
@@ -38,5 +38,7 @@ class FakeEngine(ModelEngine):
 
             if req.first_decode_time is None:
                 req.first_decode_time = decode_done_time
-            decode_results.append((req.request_id, next_token))
+
+            finished = len(req.generated_tokens) + 1 >= req.max_new_tokens
+            decode_results.append((req.request_id, next_token, finished))
         return decode_results

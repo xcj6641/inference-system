@@ -93,6 +93,8 @@ class KVMemoryManager:
     def utilization(self) -> float:
         return 0.0 if self.capacity == 0 else self.used / self.capacity
 
+    def display_info(self) -> str:
+        return f"capacity:{self.capacity}, used:{self.used}, decode_reserved:{self.decode_reserved}"
 class Scheduler:
     def __init__(
         self,
@@ -154,6 +156,7 @@ class Scheduler:
         # Therefore active_sequences == decode_candidates.
         async with self.store.lock:
             decode_snapshot = list(self.store.active_requests.values())
+
         self.kv_manager.reserve_decode(len(decode_snapshot))
         decode_targets = self.kv_manager.build_decode_batch(decode_snapshot)
         # decode_targets = self.kv_manager.reserve_and_build_decode_batch(active_snapshot)
@@ -161,6 +164,10 @@ class Scheduler:
         # Step 1: admit from waiting queue while token budget allows
         async with self.store.lock:
             while self.store.waiting_queue:
+
+                self.logger.info(
+                            "[tick start] kv: %s",
+                            self.kv_manager.display_info(),)
                 # fairness issue: head-of-line blocking if the head request is too large to admit, it will block all other requests behind it. In practice, this may not be a big issue since we expect most requests to be small (e.g., < 100 tokens), but it's something to keep in mind. 
                 # Possible solution: look beyond the head of the queue for requests that fit in the token budget, but this adds complexity and may cause starvation of large requests.
                 peek = self.store.waiting_queue[0]
@@ -178,7 +185,7 @@ class Scheduler:
 
                     self.logger.info(
                         "[admission_blocked] reason=%s head_request_id=%s prompt_tokens=%d "
-                        "reserved_tokens=%d needed_tokens=%d "
+                        "req_reserved_tokens=%d needed_tokens=%d "
                         "tokens_in_flight=%s kv_usage=%s active_sequences=%d/%d",
                         block_reason,
                         peek.request_id,
@@ -208,7 +215,7 @@ class Scheduler:
                 # self.stats.active_sequences += 1
                 admitted_ids.append(req.request_id)
                 self.logger.info(
-                    "[admit] request_id=%s prompt_tokens=%d reserved_tokens=%d "
+                    "[admit] request_id=%s prompt_tokens=%d req_reserved_tokens=%d "
                     "tokens_in_flight=%s kv_usage=%s kv_blocks_used=%d",
                     req.request_id,
                     req.prompt_tokens,
@@ -254,7 +261,7 @@ class Scheduler:
                 decode_results = await self.engine.decode_step(decode_targets)
                 async with self.store.lock:
                     # for req in decode_targets:
-                    for req_id, token in decode_results:
+                    for req_id, token, finished in decode_results:
                         req = self.store.active_requests.get(req_id)
                         if req is None:
                             continue
@@ -264,6 +271,10 @@ class Scheduler:
                         await req.token_stream.put(token)
 
                         req.update_kv_usage(self.config.kv_block_size)
+
+                        if finished:
+                            req.state = RequestState.FINISHED
+                            
                     self.kv_manager.allocate_decode_growth(len(decode_results))
             finally:
                 self.kv_manager.release_decode_reserved()
@@ -272,7 +283,7 @@ class Scheduler:
         async with self.store.lock:
             to_finish = []
             for req in self.store.active_requests.values():
-                if len(req.generated_tokens) >= req.max_new_tokens:
+                if len(req.generated_tokens) >= req.max_new_tokens or req.state == RequestState.FINISHED:
                     req.state = RequestState.FINISHED
                     req.finished_time = time.time()
                     await req.token_stream.put(END_OF_STREAM)
@@ -336,7 +347,7 @@ class Scheduler:
             self.logger.info(
                 f"[complete] request_id={req.request_id} "
                 f"prompt={req.prompt!r} "
-                f"prompt_tokens={req.prompt_tokens} reserved_tokens={req.reserved_tokens} "
+                f"prompt_tokens={req.prompt_tokens} req_reserved_tokens={req.reserved_tokens} "
                 f"max_new_tokens={req.max_new_tokens} "
                 f"generated_tokens={len(req.generated_tokens)} "
                 f"queue_wait_ms={self._fmt_ms(req.queue_wait_ms)} "
@@ -361,7 +372,7 @@ class Scheduler:
         waiting_size: int,
         admitted_ids: list[str],
         prefill_ids: list[str],
-        decode_results: list[tuple[str, str]],
+        decode_results: list[tuple[str, str, bool]],
         finished_ids: list[str],
         active_before_finish: list[str],
         active_after_finish: list[str],
@@ -371,7 +382,7 @@ class Scheduler:
         if not has_event and not self.config.log_empty_ticks:
             return
 
-        decode_str = " ".join([f"{rid}->{tok}" for rid, tok in decode_results]) or "none"
+        decode_str = " ".join([f"{rid}->{tok}" for rid, tok, _ in decode_results]) or "none"
         admit_str = ",".join(admitted_ids) or "none"
         prefill_str = ",".join(prefill_ids) or "none"
         finish_str = ",".join(finished_ids) or "none"

@@ -1,12 +1,826 @@
-2026-07-07 12:36:51 INFO [submit] request_id=1aa4b44b prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
-2026-07-07 12:37:40 INFO [submit] request_id=5d7645bf prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
-2026-07-07 14:03:49 INFO [submit] request_id=affcf28c prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
-2026-07-07 15:38:57 INFO [submit] request_id=47a3df40 prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 state=RequestState.WAITING prompt='hello world'
-2026-07-07 15:38:57 INFO [admit] request_id=47a3df40 prompt_tokens=2 reserved_tokens=7 tokens_in_flight=7/512 kv_usage=2/128 kv_blocks_used=1
-2026-07-07 15:38:57 INFO [tick=2] waiting=0 tokens_in_flight=7/512 kv_usage=2/128 admit=47a3df40 active_before_finish=none prefill_batch_size=1 prefill_done=47a3df40 decode_batch_size=0 decode=none finish=none active_after_finish=47a3df40
-2026-07-07 15:38:57 INFO [tick=3] waiting=0 tokens_in_flight=7/512 kv_usage=3/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok1 finish=none active_after_finish=47a3df40
-2026-07-07 15:38:58 INFO [tick=4] waiting=0 tokens_in_flight=7/512 kv_usage=4/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok2 finish=none active_after_finish=47a3df40
-2026-07-07 15:38:58 INFO [tick=5] waiting=0 tokens_in_flight=7/512 kv_usage=5/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok3 finish=none active_after_finish=47a3df40
-2026-07-07 15:38:58 INFO [tick=6] waiting=0 tokens_in_flight=7/512 kv_usage=6/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok4 finish=none active_after_finish=47a3df40
-2026-07-07 15:38:59 INFO [tick=7] waiting=0 tokens_in_flight=0/512 kv_usage=0/128 admit=none active_before_finish=47a3df40 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=47a3df40->tok5 finish=47a3df40 active_after_finish=none
-2026-07-07 15:38:59 INFO [complete] request_id=47a3df40 prompt='hello world' prompt_tokens=2 reserved_tokens=7 max_new_tokens=5 generated_tokens=5 queue_wait_ms=100.6 prefill_wait_ms=0.1 prefill_ms=5.7 ttft_ms=408.6 decode_tail_ms=1211.1 service_time_ms=1519.1 total_latency_ms=1619.7 tokens_in_flight=0/512
+# bug: In scheduler.py, 
+# if len(req.generated_tokens) >= req.max_new_tokens: req.state = RequestState.FINISHED 
+# But some responses are shorter than the max_new_tokens, 
+# so the request will never FINISHED, and they will never release the kv capacity.
+
+
+2026-07-09 15:17:00 INFO Backend: {'vllm_http'}
+# curl -N -X POST http://localhost:8000/generate \
+#  -H "Content-Type: application/json" \
+#  -d '{
+#    "prompt": "What is the temperature now?",
+#    "max_new_tokens": 32
+#  }'
+
+2026-07-09 15:30:30 INFO [submit] request_id=e18a562e prompt_tokens=5 reserved_tokens=37 max_new_tokens=32 state=RequestState.WAITING prompt='What is the temperature now?'
+2026-07-09 15:30:30 INFO [tick start] kv: capacity:128, used:0, decode_reserved:0
+2026-07-09 15:30:30 INFO [admit] request_id=e18a562e prompt_tokens=5 req_reserved_tokens=37 tokens_in_flight=37/512 kv_usage=5/128 kv_blocks_used=1
+2026-07-09 15:30:30 INFO [tick=8003] waiting=0 tokens_in_flight=37/512 kv_usage=5/128 admit=e18a562e active_before_finish=none prefill_batch_size=1 prefill_done=e18a562e decode_batch_size=0 decode=none finish=none active_after_finish=e18a562e
+2026-07-09 15:30:30 INFO [tick=8004] waiting=0 tokens_in_flight=37/512 kv_usage=6/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->As finish=none active_after_finish=e18a562e
+2026-07-09 15:30:30 INFO [tick=8005] waiting=0 tokens_in_flight=37/512 kv_usage=7/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->an finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8006] waiting=0 tokens_in_flight=37/512 kv_usage=8/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->artificial finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8007] waiting=0 tokens_in_flight=37/512 kv_usage=9/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->intelligence finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8008] waiting=0 tokens_in_flight=37/512 kv_usage=10/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->language finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8009] waiting=0 tokens_in_flight=37/512 kv_usage=11/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->model, finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8010] waiting=0 tokens_in_flight=37/512 kv_usage=12/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->I finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8011] waiting=0 tokens_in_flight=37/512 kv_usage=13/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->don't finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8012] waiting=0 tokens_in_flight=37/512 kv_usage=14/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->have finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8013] waiting=0 tokens_in_flight=37/512 kv_usage=15/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->direct finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8014] waiting=0 tokens_in_flight=37/512 kv_usage=16/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->access finish=none active_after_finish=e18a562e
+2026-07-09 15:30:31 INFO [tick=8015] waiting=0 tokens_in_flight=37/512 kv_usage=17/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->to finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8016] waiting=0 tokens_in_flight=37/512 kv_usage=18/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->real-time finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8017] waiting=0 tokens_in_flight=37/512 kv_usage=19/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->temperature finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8018] waiting=0 tokens_in_flight=37/512 kv_usage=20/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->data. finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8019] waiting=0 tokens_in_flight=37/512 kv_usage=21/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->The finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8020] waiting=0 tokens_in_flight=37/512 kv_usage=22/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->temperature finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8021] waiting=0 tokens_in_flight=37/512 kv_usage=23/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->in finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8022] waiting=0 tokens_in_flight=37/512 kv_usage=24/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->your finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8023] waiting=0 tokens_in_flight=37/512 kv_usage=25/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->location finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8024] waiting=0 tokens_in_flight=37/512 kv_usage=26/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->or finish=none active_after_finish=e18a562e
+2026-07-09 15:30:32 INFO [tick=8025] waiting=0 tokens_in_flight=37/512 kv_usage=27/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->the finish=none active_after_finish=e18a562e
+2026-07-09 15:30:33 INFO [tick=8026] waiting=0 tokens_in_flight=37/512 kv_usage=28/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->world finish=none active_after_finish=e18a562e
+2026-07-09 15:30:33 INFO [tick=8027] waiting=0 tokens_in_flight=37/512 kv_usage=29/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->as finish=none active_after_finish=e18a562e
+2026-07-09 15:30:33 INFO [tick=8028] waiting=0 tokens_in_flight=37/512 kv_usage=30/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->a finish=none active_after_finish=e18a562e
+2026-07-09 15:30:33 INFO [tick=8029] waiting=0 tokens_in_flight=37/512 kv_usage=31/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->whole finish=none active_after_finish=e18a562e
+2026-07-09 15:30:33 INFO [tick=8030] waiting=0 tokens_in_flight=37/512 kv_usage=32/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->can finish=none active_after_finish=e18a562e
+2026-07-09 15:30:33 INFO [tick=8031] waiting=0 tokens_in_flight=37/512 kv_usage=33/128 admit=none active_before_finish=e18a562e prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=e18a562e->vary finish=none active_after_finish=e18a562e
+
+
+# curl -N -X POST http://localhost:8000/generate \
+#  -H "Content-Type: application/json" \
+#  -d '{
+#    "prompt": "Say hello in one short sentence.",
+#    "max_new_tokens": 16
+#  }'
+2026-07-09 15:37:00 INFO [submit] request_id=0e5a49f8 prompt_tokens=6 reserved_tokens=22 max_new_tokens=16 state=RequestState.WAITING prompt='Say hello in one short sentence.'
+2026-07-09 15:37:01 INFO [tick start] kv: capacity:128, used:33, decode_reserved:1
+2026-07-09 15:37:01 INFO [admit] request_id=0e5a49f8 prompt_tokens=6 req_reserved_tokens=22 tokens_in_flight=59/512 kv_usage=39/128 kv_blocks_used=1
+2026-07-09 15:37:01 INFO [tick=11866] waiting=0 tokens_in_flight=59/512 kv_usage=39/128 admit=0e5a49f8 active_before_finish=e18a562e prefill_batch_size=1 prefill_done=0e5a49f8 decode_batch_size=0 decode=none finish=none active_after_finish=e18a562e,0e5a49f8
+2026-07-09 15:37:01 INFO [tick=11867] waiting=0 tokens_in_flight=59/512 kv_usage=40/128 admit=none active_before_finish=e18a562e,0e5a49f8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=0e5a49f8->Hello! finish=none active_after_finish=e18a562e,0e5a49f8
+2026-07-09 15:37:01 INFO [tick=11868] waiting=0 tokens_in_flight=59/512 kv_usage=41/128 admit=none active_before_finish=e18a562e,0e5a49f8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=0e5a49f8->How finish=none active_after_finish=e18a562e,0e5a49f8
+2026-07-09 15:37:01 INFO [tick=11869] waiting=0 tokens_in_flight=59/512 kv_usage=42/128 admit=none active_before_finish=e18a562e,0e5a49f8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=0e5a49f8->can finish=none active_after_finish=e18a562e,0e5a49f8
+2026-07-09 15:37:01 INFO [tick=11870] waiting=0 tokens_in_flight=59/512 kv_usage=43/128 admit=none active_before_finish=e18a562e,0e5a49f8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=0e5a49f8->I finish=none active_after_finish=e18a562e,0e5a49f8
+2026-07-09 15:37:01 INFO [tick=11871] waiting=0 tokens_in_flight=59/512 kv_usage=44/128 admit=none active_before_finish=e18a562e,0e5a49f8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=0e5a49f8->assist finish=none active_after_finish=e18a562e,0e5a49f8
+2026-07-09 15:37:01 INFO [tick=11872] waiting=0 tokens_in_flight=59/512 kv_usage=45/128 admit=none active_before_finish=e18a562e,0e5a49f8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=0e5a49f8->you finish=none active_after_finish=e18a562e,0e5a49f8
+2026-07-09 15:37:02 INFO [tick=11873] waiting=0 tokens_in_flight=59/512 kv_usage=46/128 admit=none active_before_finish=e18a562e,0e5a49f8 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=0e5a49f8->today? finish=none active_after_finish=e18a562e,0e5a49f8
+
+# bug fixed
+2026-07-09 17:36:28 INFO Backend: {'vllm_http'}
+
+#curl -N -X POST http://localhost:8000/generate \
+#  -H "Content-Type: application/json" \
+#  -d '{
+#    "prompt": "What is the temperature now?",
+#    "max_new_tokens": 32
+#  }'
+
+2026-07-09 21:54:38 INFO Backend: {'vllm_http'}
+2026-07-09 21:55:16 INFO [submit] request_id=c2939cce prompt_tokens=5 reserved_tokens=37 max_new_tokens=32 state=RequestState.WAITING prompt='What is the temperature now?'
+2026-07-09 21:55:16 INFO [tick start] kv: capacity:128, used:0, decode_reserved:0
+2026-07-09 21:55:16 INFO [admit] request_id=c2939cce prompt_tokens=5 req_reserved_tokens=37 tokens_in_flight=37/512 kv_usage=5/128 kv_blocks_used=1
+2026-07-09 21:55:17 INFO [tick=374] waiting=0 tokens_in_flight=37/512 kv_usage=5/128 admit=c2939cce active_before_finish=none prefill_batch_size=1 prefill_done=c2939cce decode_batch_size=0 decode=none finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=375] waiting=0 tokens_in_flight=37/512 kv_usage=6/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->As finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=376] waiting=0 tokens_in_flight=37/512 kv_usage=7/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->an finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=377] waiting=0 tokens_in_flight=37/512 kv_usage=8/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->artificial finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=378] waiting=0 tokens_in_flight=37/512 kv_usage=9/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->intelligence finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=379] waiting=0 tokens_in_flight=37/512 kv_usage=10/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->language finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=380] waiting=0 tokens_in_flight=37/512 kv_usage=11/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->model, finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=381] waiting=0 tokens_in_flight=37/512 kv_usage=12/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->I finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=382] waiting=0 tokens_in_flight=37/512 kv_usage=13/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->don't finish=none active_after_finish=c2939cce
+2026-07-09 21:55:17 INFO [tick=383] waiting=0 tokens_in_flight=37/512 kv_usage=14/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->have finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=384] waiting=0 tokens_in_flight=37/512 kv_usage=15/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->direct finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=385] waiting=0 tokens_in_flight=37/512 kv_usage=16/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->access finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=386] waiting=0 tokens_in_flight=37/512 kv_usage=17/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->to finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=387] waiting=0 tokens_in_flight=37/512 kv_usage=18/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->real-time finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=388] waiting=0 tokens_in_flight=37/512 kv_usage=19/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->temperature finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=389] waiting=0 tokens_in_flight=37/512 kv_usage=20/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->data. finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=390] waiting=0 tokens_in_flight=37/512 kv_usage=21/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->The finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=391] waiting=0 tokens_in_flight=37/512 kv_usage=22/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->temperature finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=392] waiting=0 tokens_in_flight=37/512 kv_usage=23/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->in finish=none active_after_finish=c2939cce
+2026-07-09 21:55:18 INFO [tick=393] waiting=0 tokens_in_flight=37/512 kv_usage=24/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->your finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=394] waiting=0 tokens_in_flight=37/512 kv_usage=25/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->location finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=395] waiting=0 tokens_in_flight=37/512 kv_usage=26/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->or finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=396] waiting=0 tokens_in_flight=37/512 kv_usage=27/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->the finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=397] waiting=0 tokens_in_flight=37/512 kv_usage=28/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->world finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=398] waiting=0 tokens_in_flight=37/512 kv_usage=29/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->as finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=399] waiting=0 tokens_in_flight=37/512 kv_usage=30/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->a finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=400] waiting=0 tokens_in_flight=37/512 kv_usage=31/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->whole finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=401] waiting=0 tokens_in_flight=37/512 kv_usage=32/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->can finish=none active_after_finish=c2939cce
+2026-07-09 21:55:19 INFO [tick=402] waiting=0 tokens_in_flight=0/512 kv_usage=0/128 admit=none active_before_finish=c2939cce prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=c2939cce->vary finish=c2939cce active_after_finish=none
+2026-07-09 21:55:19 INFO [complete] request_id=c2939cce prompt='What is the temperature now?' prompt_tokens=5 req_reserved_tokens=37 max_new_tokens=32 generated_tokens=28 queue_wait_ms=72.6 prefill_wait_ms=0.1 prefill_ms=438.0 ttft_ms=none decode_tail_ms=none service_time_ms=3281.0 total_latency_ms=3353.5 tokens_in_flight=0/512
+
+
+# 3 requests in the same time
+#curl -N -X POST http://localhost:8000/generate \
+#  -H "Content-Type: application/json" \
+#  -d '{
+#    "prompt": "What is the temperature now?",
+#    "max_new_tokens": 32
+#  }'
+
+# curl -N -X POST http://localhost:8000/generate \
+# -H "Content-Type: application/json" \
+# -d '{
+#   "prompt": "Say hello in one short sentence.",
+#   "max_new_tokens": 16
+# }'
+
+# curl -N -X POST http://localhost:8000/generate \
+# -H "Content-Type: application/json" \
+# -d '{
+#   "prompt": "Can you tell me what is Seattle?",
+#   "max_new_tokens": 64
+# }'
+2026-07-09 22:01:07 INFO [submit] request_id=b2915b30 prompt_tokens=5 reserved_tokens=37 max_new_tokens=32 state=RequestState.WAITING prompt='What is the temperature now?'
+2026-07-09 22:01:07 INFO [tick start] kv: capacity:128, used:0, decode_reserved:0
+2026-07-09 22:01:07 INFO [admit] request_id=b2915b30 prompt_tokens=5 req_reserved_tokens=37 tokens_in_flight=37/512 kv_usage=5/128 kv_blocks_used=1
+2026-07-09 22:01:08 INFO [tick=3846] waiting=0 tokens_in_flight=37/512 kv_usage=5/128 admit=b2915b30 active_before_finish=none prefill_batch_size=1 prefill_done=b2915b30 decode_batch_size=0 decode=none finish=none active_after_finish=b2915b30
+2026-07-09 22:01:08 INFO [tick=3847] waiting=0 tokens_in_flight=37/512 kv_usage=6/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->As finish=none active_after_finish=b2915b30
+2026-07-09 22:01:08 INFO [tick=3848] waiting=0 tokens_in_flight=37/512 kv_usage=7/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->an finish=none active_after_finish=b2915b30
+2026-07-09 22:01:08 INFO [tick=3849] waiting=0 tokens_in_flight=37/512 kv_usage=8/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->artificial finish=none active_after_finish=b2915b30
+2026-07-09 22:01:08 INFO [tick=3850] waiting=0 tokens_in_flight=37/512 kv_usage=9/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->intelligence finish=none active_after_finish=b2915b30
+2026-07-09 22:01:08 INFO [tick=3851] waiting=0 tokens_in_flight=37/512 kv_usage=10/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->language finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3852] waiting=0 tokens_in_flight=37/512 kv_usage=11/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->model, finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3853] waiting=0 tokens_in_flight=37/512 kv_usage=12/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->I finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3854] waiting=0 tokens_in_flight=37/512 kv_usage=13/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->don't finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3855] waiting=0 tokens_in_flight=37/512 kv_usage=14/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->have finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3856] waiting=0 tokens_in_flight=37/512 kv_usage=15/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->direct finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3857] waiting=0 tokens_in_flight=37/512 kv_usage=16/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->access finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3858] waiting=0 tokens_in_flight=37/512 kv_usage=17/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->to finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3859] waiting=0 tokens_in_flight=37/512 kv_usage=18/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->real-time finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3860] waiting=0 tokens_in_flight=37/512 kv_usage=19/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->temperature finish=none active_after_finish=b2915b30
+2026-07-09 22:01:09 INFO [tick=3861] waiting=0 tokens_in_flight=37/512 kv_usage=20/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->data. finish=none active_after_finish=b2915b30
+2026-07-09 22:01:10 INFO [tick=3862] waiting=0 tokens_in_flight=37/512 kv_usage=21/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->The finish=none active_after_finish=b2915b30
+2026-07-09 22:01:10 INFO [tick=3863] waiting=0 tokens_in_flight=37/512 kv_usage=22/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->temperature finish=none active_after_finish=b2915b30
+2026-07-09 22:01:10 INFO [tick=3864] waiting=0 tokens_in_flight=37/512 kv_usage=23/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->in finish=none active_after_finish=b2915b30
+2026-07-09 22:01:10 INFO [tick=3865] waiting=0 tokens_in_flight=37/512 kv_usage=24/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->your finish=none active_after_finish=b2915b30
+2026-07-09 22:01:10 INFO [tick=3866] waiting=0 tokens_in_flight=37/512 kv_usage=25/128 admit=none active_before_finish=b2915b30 prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=b2915b30->location finish=none active_after_finish=b2915b30
+2026-07-09 22:01:10 INFO [submit] request_id=93fee00a prompt_tokens=7 reserved_tokens=71 max_new_tokens=64 state=RequestState.WAITING prompt='Can you tell me what is Seattle?'
+2026-07-09 22:01:10 INFO [tick start] kv: capacity:128, used:25, decode_reserved:1
+2026-07-09 22:01:10 INFO [admit] request_id=93fee00a prompt_tokens=7 req_reserved_tokens=71 tokens_in_flight=108/512 kv_usage=32/128 kv_blocks_used=1
+2026-07-09 22:01:11 INFO [tick=3867] waiting=0 tokens_in_flight=108/512 kv_usage=33/128 admit=93fee00a active_before_finish=b2915b30 prefill_batch_size=1 prefill_done=93fee00a decode_batch_size=1 decode=b2915b30->or finish=none active_after_finish=b2915b30,93fee00a
+2026-07-09 22:01:11 INFO [tick=3868] waiting=0 tokens_in_flight=108/512 kv_usage=35/128 admit=none active_before_finish=b2915b30,93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b2915b30->the 93fee00a->Seattle finish=none active_after_finish=b2915b30,93fee00a
+2026-07-09 22:01:11 INFO [tick=3869] waiting=0 tokens_in_flight=108/512 kv_usage=37/128 admit=none active_before_finish=b2915b30,93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b2915b30->world 93fee00a->is finish=none active_after_finish=b2915b30,93fee00a
+2026-07-09 22:01:11 INFO [tick=3870] waiting=0 tokens_in_flight=108/512 kv_usage=39/128 admit=none active_before_finish=b2915b30,93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b2915b30->as 93fee00a->a finish=none active_after_finish=b2915b30,93fee00a
+2026-07-09 22:01:11 INFO [tick=3871] waiting=0 tokens_in_flight=108/512 kv_usage=41/128 admit=none active_before_finish=b2915b30,93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b2915b30->a 93fee00a->city finish=none active_after_finish=b2915b30,93fee00a
+2026-07-09 22:01:11 INFO [tick=3872] waiting=0 tokens_in_flight=108/512 kv_usage=43/128 admit=none active_before_finish=b2915b30,93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b2915b30->whole 93fee00a->located finish=none active_after_finish=b2915b30,93fee00a
+2026-07-09 22:01:11 INFO [tick=3873] waiting=0 tokens_in_flight=108/512 kv_usage=45/128 admit=none active_before_finish=b2915b30,93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b2915b30->can 93fee00a->in finish=none active_after_finish=b2915b30,93fee00a
+2026-07-09 22:01:11 INFO [tick=3874] waiting=0 tokens_in_flight=71/512 kv_usage=14/128 admit=none active_before_finish=b2915b30,93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=b2915b30->vary 93fee00a->the finish=b2915b30 active_after_finish=93fee00a
+2026-07-09 22:01:11 INFO [complete] request_id=b2915b30 prompt='What is the temperature now?' prompt_tokens=5 req_reserved_tokens=37 max_new_tokens=32 generated_tokens=28 queue_wait_ms=78.7 prefill_wait_ms=0.0 prefill_ms=521.8 ttft_ms=none decode_tail_ms=none service_time_ms=3894.9 total_latency_ms=3973.6 tokens_in_flight=71/512
+2026-07-09 22:01:11 INFO [tick=3875] waiting=0 tokens_in_flight=71/512 kv_usage=15/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->state finish=none active_after_finish=93fee00a
+2026-07-09 22:01:11 INFO [tick=3876] waiting=0 tokens_in_flight=71/512 kv_usage=16/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->of finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3877] waiting=0 tokens_in_flight=71/512 kv_usage=17/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->Washington, finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3878] waiting=0 tokens_in_flight=71/512 kv_usage=18/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->United finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3879] waiting=0 tokens_in_flight=71/512 kv_usage=19/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->States. finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3880] waiting=0 tokens_in_flight=71/512 kv_usage=20/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->It finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3881] waiting=0 tokens_in_flight=71/512 kv_usage=21/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->is finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3882] waiting=0 tokens_in_flight=71/512 kv_usage=22/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->the finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3883] waiting=0 tokens_in_flight=71/512 kv_usage=23/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->largest finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3884] waiting=0 tokens_in_flight=71/512 kv_usage=24/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->city finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3885] waiting=0 tokens_in_flight=71/512 kv_usage=25/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->in finish=none active_after_finish=93fee00a
+2026-07-09 22:01:12 INFO [tick=3886] waiting=0 tokens_in_flight=71/512 kv_usage=26/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->the finish=none active_after_finish=93fee00a
+2026-07-09 22:01:13 INFO [submit] request_id=0fc395a2 prompt_tokens=6 reserved_tokens=22 max_new_tokens=16 state=RequestState.WAITING prompt='Say hello in one short sentence.'
+2026-07-09 22:01:13 INFO [tick start] kv: capacity:128, used:26, decode_reserved:1
+2026-07-09 22:01:13 INFO [admit] request_id=0fc395a2 prompt_tokens=6 req_reserved_tokens=22 tokens_in_flight=93/512 kv_usage=32/128 kv_blocks_used=1
+2026-07-09 22:01:13 INFO [tick=3887] waiting=0 tokens_in_flight=93/512 kv_usage=33/128 admit=0fc395a2 active_before_finish=93fee00a prefill_batch_size=1 prefill_done=0fc395a2 decode_batch_size=1 decode=93fee00a->state finish=none active_after_finish=93fee00a,0fc395a2
+2026-07-09 22:01:13 INFO [tick=3888] waiting=0 tokens_in_flight=93/512 kv_usage=35/128 admit=none active_before_finish=93fee00a,0fc395a2 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=93fee00a->and 0fc395a2->Hello! finish=none active_after_finish=93fee00a,0fc395a2
+2026-07-09 22:01:13 INFO [tick=3889] waiting=0 tokens_in_flight=93/512 kv_usage=37/128 admit=none active_before_finish=93fee00a,0fc395a2 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=93fee00a->the 0fc395a2->How finish=none active_after_finish=93fee00a,0fc395a2
+2026-07-09 22:01:13 INFO [tick=3890] waiting=0 tokens_in_flight=93/512 kv_usage=39/128 admit=none active_before_finish=93fee00a,0fc395a2 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=93fee00a->fourth-largest 0fc395a2->can finish=none active_after_finish=93fee00a,0fc395a2
+2026-07-09 22:01:13 INFO [tick=3891] waiting=0 tokens_in_flight=93/512 kv_usage=41/128 admit=none active_before_finish=93fee00a,0fc395a2 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=93fee00a->city 0fc395a2->I finish=none active_after_finish=93fee00a,0fc395a2
+2026-07-09 22:01:13 INFO [tick=3892] waiting=0 tokens_in_flight=93/512 kv_usage=43/128 admit=none active_before_finish=93fee00a,0fc395a2 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=93fee00a->in 0fc395a2->assist finish=none active_after_finish=93fee00a,0fc395a2
+2026-07-09 22:01:13 INFO [tick=3893] waiting=0 tokens_in_flight=93/512 kv_usage=45/128 admit=none active_before_finish=93fee00a,0fc395a2 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=93fee00a->the 0fc395a2->you finish=none active_after_finish=93fee00a,0fc395a2
+2026-07-09 22:01:14 INFO [tick=3894] waiting=0 tokens_in_flight=71/512 kv_usage=34/128 admit=none active_before_finish=93fee00a,0fc395a2 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=93fee00a->United 0fc395a2->today? finish=0fc395a2 active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [complete] request_id=0fc395a2 prompt='Say hello in one short sentence.' prompt_tokens=6 req_reserved_tokens=22 max_new_tokens=16 generated_tokens=7 queue_wait_ms=12.3 prefill_wait_ms=0.0 prefill_ms=217.8 ttft_ms=none decode_tail_ms=none service_time_ms=927.4 total_latency_ms=939.8 tokens_in_flight=71/512
+2026-07-09 22:01:14 INFO [tick=3895] waiting=0 tokens_in_flight=71/512 kv_usage=35/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->States finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3896] waiting=0 tokens_in_flight=71/512 kv_usage=36/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->by finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3897] waiting=0 tokens_in_flight=71/512 kv_usage=37/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->population. finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3898] waiting=0 tokens_in_flight=71/512 kv_usage=38/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->Seattle finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3899] waiting=0 tokens_in_flight=71/512 kv_usage=39/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->is finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3900] waiting=0 tokens_in_flight=71/512 kv_usage=40/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->known finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3901] waiting=0 tokens_in_flight=71/512 kv_usage=41/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->for finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3902] waiting=0 tokens_in_flight=71/512 kv_usage=42/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->its finish=none active_after_finish=93fee00a
+2026-07-09 22:01:14 INFO [tick=3903] waiting=0 tokens_in_flight=71/512 kv_usage=43/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->diverse finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3904] waiting=0 tokens_in_flight=71/512 kv_usage=44/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->culture, finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3905] waiting=0 tokens_in_flight=71/512 kv_usage=45/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->rich finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3906] waiting=0 tokens_in_flight=71/512 kv_usage=46/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->history, finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3907] waiting=0 tokens_in_flight=71/512 kv_usage=47/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->and finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3908] waiting=0 tokens_in_flight=71/512 kv_usage=48/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->beautiful finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3909] waiting=0 tokens_in_flight=71/512 kv_usage=49/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->natural finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3910] waiting=0 tokens_in_flight=71/512 kv_usage=50/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->scenery. finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3911] waiting=0 tokens_in_flight=71/512 kv_usage=51/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->The finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3912] waiting=0 tokens_in_flight=71/512 kv_usage=52/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->city finish=none active_after_finish=93fee00a
+2026-07-09 22:01:15 INFO [tick=3913] waiting=0 tokens_in_flight=71/512 kv_usage=53/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->is finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3914] waiting=0 tokens_in_flight=71/512 kv_usage=54/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->home finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3915] waiting=0 tokens_in_flight=71/512 kv_usage=55/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->to finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3916] waiting=0 tokens_in_flight=71/512 kv_usage=56/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->many finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3917] waiting=0 tokens_in_flight=71/512 kv_usage=57/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->famous finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3918] waiting=0 tokens_in_flight=71/512 kv_usage=58/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->landmarks finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3919] waiting=0 tokens_in_flight=71/512 kv_usage=59/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->such finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3920] waiting=0 tokens_in_flight=71/512 kv_usage=60/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->as finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3921] waiting=0 tokens_in_flight=71/512 kv_usage=61/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->the finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3922] waiting=0 tokens_in_flight=71/512 kv_usage=62/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->Seattle finish=none active_after_finish=93fee00a
+2026-07-09 22:01:16 INFO [tick=3923] waiting=0 tokens_in_flight=71/512 kv_usage=63/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->Space finish=none active_after_finish=93fee00a
+2026-07-09 22:01:17 INFO [tick=3924] waiting=0 tokens_in_flight=0/512 kv_usage=0/128 admit=none active_before_finish=93fee00a prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=93fee00a->Needle finish=93fee00a active_after_finish=none
+2026-07-09 22:01:17 INFO [complete] request_id=93fee00a prompt='Can you tell me what is Seattle?' prompt_tokens=7 req_reserved_tokens=71 max_new_tokens=64 generated_tokens=57 queue_wait_ms=99.6 prefill_wait_ms=0.0 prefill_ms=533.5 ttft_ms=none decode_tail_ms=none service_time_ms=6532.2 total_latency_ms=6631.7 tokens_in_flight=0/512
+
+# a request waitting
+2026-07-09 22:13:15 INFO [submit] request_id=8e80cbcc prompt_tokens=7 reserved_tokens=71 max_new_tokens=64 state=RequestState.WAITING prompt='Can you tell me what is Seattle?'
+2026-07-09 22:13:15 INFO [tick start] kv: capacity:128, used:0, decode_reserved:0
+2026-07-09 22:13:15 INFO [admit] request_id=8e80cbcc prompt_tokens=7 req_reserved_tokens=71 tokens_in_flight=71/512 kv_usage=7/128 kv_blocks_used=1
+2026-07-09 22:13:15 INFO [tick=11018] waiting=0 tokens_in_flight=71/512 kv_usage=7/128 admit=8e80cbcc active_before_finish=none prefill_batch_size=1 prefill_done=8e80cbcc decode_batch_size=0 decode=none finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11019] waiting=0 tokens_in_flight=71/512 kv_usage=8/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->Seattle finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11020] waiting=0 tokens_in_flight=71/512 kv_usage=9/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->is finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11021] waiting=0 tokens_in_flight=71/512 kv_usage=10/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->a finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11022] waiting=0 tokens_in_flight=71/512 kv_usage=11/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->city finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11023] waiting=0 tokens_in_flight=71/512 kv_usage=12/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->located finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11024] waiting=0 tokens_in_flight=71/512 kv_usage=13/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->in finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11025] waiting=0 tokens_in_flight=71/512 kv_usage=14/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->the finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11026] waiting=0 tokens_in_flight=71/512 kv_usage=15/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->state finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11027] waiting=0 tokens_in_flight=71/512 kv_usage=16/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->of finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:16 INFO [tick=11028] waiting=0 tokens_in_flight=71/512 kv_usage=17/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->Washington, finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:17 INFO [tick=11029] waiting=0 tokens_in_flight=71/512 kv_usage=18/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->United finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:17 INFO [tick=11030] waiting=0 tokens_in_flight=71/512 kv_usage=19/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->States. finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:17 INFO [tick=11031] waiting=0 tokens_in_flight=71/512 kv_usage=20/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->It finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:17 INFO [tick=11032] waiting=0 tokens_in_flight=71/512 kv_usage=21/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->is finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:17 INFO [tick=11033] waiting=0 tokens_in_flight=71/512 kv_usage=22/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->the finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:17 INFO [tick=11034] waiting=0 tokens_in_flight=71/512 kv_usage=23/128 admit=none active_before_finish=8e80cbcc prefill_batch_size=0 prefill_done=none decode_batch_size=1 decode=8e80cbcc->largest finish=none active_after_finish=8e80cbcc
+2026-07-09 22:13:17 INFO [submit] request_id=9e471518 prompt_tokens=6 reserved_tokens=106 max_new_tokens=100 state=RequestState.WAITING prompt='Can you introduce the world cup?'
+2026-07-09 22:13:17 INFO [tick start] kv: capacity:128, used:23, decode_reserved:1
+2026-07-09 22:13:17 INFO [admit] request_id=9e471518 prompt_tokens=6 req_reserved_tokens=106 tokens_in_flight=177/512 kv_usage=29/128 kv_blocks_used=1
+2026-07-09 22:13:18 INFO [tick=11035] waiting=0 tokens_in_flight=177/512 kv_usage=30/128 admit=9e471518 active_before_finish=8e80cbcc prefill_batch_size=1 prefill_done=9e471518 decode_batch_size=1 decode=8e80cbcc->city finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:18 INFO [tick=11036] waiting=0 tokens_in_flight=177/512 kv_usage=32/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->in 9e471518->Certainly! finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:18 INFO [tick=11037] waiting=0 tokens_in_flight=177/512 kv_usage=34/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->the 9e471518->The finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:18 INFO [tick=11038] waiting=0 tokens_in_flight=177/512 kv_usage=36/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->state 9e471518->World finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:18 INFO [tick=11039] waiting=0 tokens_in_flight=177/512 kv_usage=38/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->and 9e471518->Cup finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:18 INFO [tick=11040] waiting=0 tokens_in_flight=177/512 kv_usage=40/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->the 9e471518->is finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:18 INFO [tick=11041] waiting=0 tokens_in_flight=177/512 kv_usage=42/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->fourth-largest 9e471518->a finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:18 INFO [tick=11042] waiting=0 tokens_in_flight=177/512 kv_usage=44/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->city 9e471518->global finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [tick=11043] waiting=0 tokens_in_flight=177/512 kv_usage=46/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->in 9e471518->soccer finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [tick=11044] waiting=0 tokens_in_flight=177/512 kv_usage=48/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->the 9e471518->competition finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [tick=11045] waiting=0 tokens_in_flight=177/512 kv_usage=50/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->United 9e471518->that finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [tick=11046] waiting=0 tokens_in_flight=177/512 kv_usage=52/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->States 9e471518->takes finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [tick=11047] waiting=0 tokens_in_flight=177/512 kv_usage=54/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->by 9e471518->place finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [tick=11048] waiting=0 tokens_in_flight=177/512 kv_usage=56/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->population. 9e471518->every finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [tick=11049] waiting=0 tokens_in_flight=177/512 kv_usage=58/128 admit=none active_before_finish=8e80cbcc,9e471518 prefill_batch_size=0 prefill_done=none decode_batch_size=2 decode=8e80cbcc->Seattle 9e471518->four finish=none active_after_finish=8e80cbcc,9e471518
+2026-07-09 22:13:19 INFO [submit] request_id=2a0ca7e2 prompt_tokens=5 reserved_tokens=37 max_new_tokens=32 state=RequestState.WAITING prompt='What is the temperature now?'
+2026-07-09 22:13:19 INFO [tick start] kv: capacity:128, used:58, decode_reserved:2
+2026-07-09 22:13:19 INFO [admit] request_id=2a0ca7e2 prompt_tokens=5 req_reserved_tokens=37 tokens_in_flight=214/512 kv_usage=63/128 kv_blocks_used=1
+2026-07-09 22:13:20 INFO [tick=11050] waiting=0 tokens_in_flight=214/512 kv_usage=65/128 admit=2a0ca7e2 active_before_finish=8e80cbcc,9e471518 prefill_batch_size=1 prefill_done=2a0ca7e2 decode_batch_size=2 decode=8e80cbcc->is 9e471518->years, finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11051] waiting=0 tokens_in_flight=214/512 kv_usage=68/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->known 9e471518->with 2a0ca7e2->As finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11052] waiting=0 tokens_in_flight=214/512 kv_usage=71/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->for 9e471518->the 2a0ca7e2->an finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11053] waiting=0 tokens_in_flight=214/512 kv_usage=74/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->its 9e471518->most 2a0ca7e2->artificial finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11054] waiting=0 tokens_in_flight=214/512 kv_usage=77/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->diverse 9e471518->recent 2a0ca7e2->intelligence finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11055] waiting=0 tokens_in_flight=214/512 kv_usage=80/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->culture, 9e471518->edition 2a0ca7e2->language finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11056] waiting=0 tokens_in_flight=214/512 kv_usage=83/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->rich 9e471518->taking 2a0ca7e2->model, finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11057] waiting=0 tokens_in_flight=214/512 kv_usage=86/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->history, 9e471518->place 2a0ca7e2->I finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:20 INFO [tick=11058] waiting=0 tokens_in_flight=214/512 kv_usage=89/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->and 9e471518->in 2a0ca7e2->don't finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11059] waiting=0 tokens_in_flight=214/512 kv_usage=92/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->beautiful 9e471518->2022. 2a0ca7e2->have finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11060] waiting=0 tokens_in_flight=214/512 kv_usage=95/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->natural 9e471518->It 2a0ca7e2->direct finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11061] waiting=0 tokens_in_flight=214/512 kv_usage=98/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->scenery. 9e471518->is 2a0ca7e2->access finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11062] waiting=0 tokens_in_flight=214/512 kv_usage=101/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->The 9e471518->the 2a0ca7e2->to finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11063] waiting=0 tokens_in_flight=214/512 kv_usage=104/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->city 9e471518->highest 2a0ca7e2->real-time finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11064] waiting=0 tokens_in_flight=214/512 kv_usage=107/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->is 9e471518->level 2a0ca7e2->temperature finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11065] waiting=0 tokens_in_flight=214/512 kv_usage=110/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->home 9e471518->of 2a0ca7e2->data. finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11066] waiting=0 tokens_in_flight=214/512 kv_usage=113/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->to 9e471518->international 2a0ca7e2->The finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11067] waiting=0 tokens_in_flight=214/512 kv_usage=116/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->many 9e471518->soccer 2a0ca7e2->temperature finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:21 INFO [tick=11068] waiting=0 tokens_in_flight=214/512 kv_usage=119/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->famous 9e471518->competition 2a0ca7e2->in finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:22 INFO [tick=11069] waiting=0 tokens_in_flight=214/512 kv_usage=122/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->landmarks 9e471518->and 2a0ca7e2->your finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:22 INFO [tick=11070] waiting=0 tokens_in_flight=214/512 kv_usage=125/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->such 9e471518->is 2a0ca7e2->location finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:22 INFO [tick=11071] waiting=0 tokens_in_flight=214/512 kv_usage=128/128 admit=none active_before_finish=8e80cbcc,9e471518,2a0ca7e2 prefill_batch_size=0 prefill_done=none decode_batch_size=3 decode=8e80cbcc->as 9e471518->considered 2a0ca7e2->or finish=none active_after_finish=8e80cbcc,9e471518,2a0ca7e2
+2026-07-09 22:13:23 INFO [submit] request_id=38f04f9d prompt_tokens=6 reserved_tokens=22 max_new_tokens=16 state=RequestState.WAITING prompt='Say hello in one short sentence.'
+2026-07-09 22:13:23 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:23 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:23 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:23 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:23 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:23 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:23 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:23 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:23 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:23 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:23 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:23 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:24 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:24 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:25 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:25 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:26 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:26 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:27 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:27 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:28 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:28 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:29 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:29 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:30 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:30 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:31 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:31 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:32 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:32 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:33 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:33 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:34 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:34 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:35 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:35 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:36 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:36 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:37 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:37 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:38 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:38 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:39 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:39 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:40 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:40 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:41 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:41 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:42 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:42 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:43 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:43 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:44 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:44 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:45 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:45 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:46 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:46 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:47 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:47 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:48 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:48 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:49 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:49 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:50 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:50 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:50 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:50 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:50 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:50 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:50 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:50 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:50 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:50 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
+2026-07-09 22:13:50 INFO [tick start] kv: capacity:128, used:128, decode_reserved:0
+2026-07-09 22:13:50 INFO [admission_blocked] reason=kv_capacity head_request_id=38f04f9d prompt_tokens=6 req_reserved_tokens=22 needed_tokens=22 tokens_in_flight=214/512 kv_usage=128/128 active_sequences=3/16
